@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metis: evidence-grounded incident investigation</title>
+<style>
+:root{
+  --paper:#eef1f4; --panel:#ffffff; --ink:#14213d; --muted:#5b6678; --rule:#cfd6df;
+  --fact:#2b59c3; --ok:#2f7d4f; --warn:#a86a0a; --bad:#b3261e; --dim:#8a94a4;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--paper:#10151f;--panel:#182030;--ink:#e6ebf4;--muted:#9aa6ba;--rule:#2c3750;
+        --fact:#7aa2ff;--ok:#5cc08a;--warn:#e0a640;--bad:#ff7b72;--dim:#6b7790}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
+h1,h2,h3{font-family:var(--serif);font-weight:600;margin:0}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--fact);outline-offset:2px}
+header{padding:18px 24px 14px;border-bottom:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:8px 24px;align-items:baseline}
+header h1{font-size:28px;letter-spacing:.01em}
+header .tag{color:var(--muted);font-family:var(--serif);font-style:italic}
+header .note{margin-left:auto;color:var(--muted);font-size:13px;max-width:560px}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr) 400px;gap:0;min-height:calc(100vh - 80px)}
+@media (max-width:1100px){.layout{grid-template-columns:1fr}}
+nav{border-right:1px solid var(--rule);padding:12px 8px;overflow:auto;max-height:calc(100vh - 80px)}
+@media (max-width:1100px){nav{border-right:0;border-bottom:1px solid var(--rule);max-height:260px}}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;border-left:3px solid transparent;padding:8px 10px;color:var(--ink)}
+nav button:hover{background:var(--panel)}
+nav button[aria-current=true]{background:var(--panel);border-left-color:var(--fact)}
+nav .t{font-weight:600;font-size:14px}
+nav .s{color:var(--muted);font-size:12px}
+main{padding:20px 24px;min-width:0}
+aside{border-left:1px solid var(--rule);padding:20px;background:var(--panel);overflow:auto}
+@media (max-width:1100px){aside{border-left:0;border-top:1px solid var(--rule)}}
+.symptom{font-family:var(--serif);font-size:20px;margin:4px 0 2px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.ledger{position:relative;margin:0;padding:0;list-style:none;border-left:2px solid var(--rule);margin-left:56px}
+.ev{position:relative;padding:6px 10px 8px 16px;margin:0 0 2px;border-radius:2px}
+.ev .tm{position:absolute;left:-62px;width:52px;text-align:right;font:12px var(--mono);color:var(--muted);top:8px}
+.ev::before{content:"";position:absolute;left:-6px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--fact);border:2px solid var(--paper)}
+.ev.s-git::before{background:var(--ok)} .ev.s-orchestrator::before,.ev.s-k8s_audit::before{background:var(--warn)}
+.ev.s-runtime::before{background:var(--ink)}
+.ev .what{font-weight:600}
+.ev .src{font:12px var(--mono);color:var(--muted)}
+.ev .detail{color:var(--ink);overflow-wrap:anywhere}
+.ev .id{font:11px var(--mono);color:var(--dim);overflow-wrap:anywhere}
+.ev.late{opacity:.62;background:repeating-linear-gradient(135deg,transparent 0 8px,rgba(138,148,164,.18) 8px 9px)}
+.ev.late .lt{color:var(--bad);font-size:12px;font-weight:600}
+.ev.flash{outline:2px solid var(--fact);background:rgba(43,89,195,.10)}
+.incident-mark{margin:10px 0 0 -2px;padding:8px 12px;border-left:4px solid var(--bad);background:var(--panel);font-weight:600}
+h3{font-size:16px;margin:18px 0 6px}
+.chip{display:inline-block;font:600 12px var(--sans);padding:1px 8px;border-radius:10px;border:1px solid currentColor;margin-right:6px}
+.c-DEPLOYED,.c-ok{color:var(--ok)} .c-APPLIED{color:var(--fact)} .c-NOT_DEPLOYED{color:var(--dim)}
+.c-UNKNOWN,.c-warn{color:var(--warn)} .c-bad{color:var(--bad)}
+.btns{display:flex;flex-direction:column;gap:8px;margin:8px 0 4px}
+.btns button{padding:9px 12px;border:1px solid var(--ink);background:var(--panel);color:var(--ink);border-radius:3px;text-align:left}
+.btns button:hover:not(:disabled){background:var(--ink);color:var(--panel)}
+.btns button:disabled{opacity:.5;cursor:wait}
+.card{border:1px solid var(--rule);border-radius:3px;padding:10px 12px;margin:8px 0;background:var(--paper)}
+.card.verdict{border-left:4px solid var(--fact)} .card.abstain{border-left:4px solid var(--warn)}
+.card.contra{border-left:4px solid var(--bad)} .card.missing{border-left:4px solid var(--warn)}
+.card .k{font-size:12px;color:var(--muted);margin-bottom:2px}
+.cite{font:12px var(--mono);background:none;border:0;color:var(--fact);text-decoration:underline;padding:0;text-align:left;overflow-wrap:anywhere}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--rule);padding:4px 6px;text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--muted)}
+.err{color:var(--bad)} .small{font-size:12px;color:var(--muted)}
+details{margin-top:14px} summary{cursor:pointer;font-weight:600}
+.recorded{margin:24px 0 8px;padding-top:14px;border-top:1px solid var(--rule)}
+@media (prefers-reduced-motion:no-preference){.ev{transition:background .3s}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Metis</h1><span class="tag">Practical Intelligence. Engineered.</span>
+  <span class="note" id="status">Synthetic incidents only. Read-only: nothing here changes any system.</span>
+</header>
+<div class="layout">
+  <nav id="list" aria-label="Incidents"></nav>
+  <main id="main"><p class="sub">Pick an incident on the left.</p></main>
+  <aside id="side" aria-live="polite"></aside>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text){const e=document.createElement(tag); if(cls)e.className=cls; if(text!==undefined)e.textContent=text; return e;}
+const LABEL = {undeployed_fix:"A fix was committed but never shipped", late_deploy_event:"Deploy record arrived late",
+  conflict_unresolvable:"Deploy log and runtime disagree", conflict_resolvable:"Disagreement settled by a failed rollout",
+  config_without_deploy:"Config changed with no deploy", insufficient_evidence:"Not enough evidence",
+  unrelated_recent_change:"Recent change is unrelated", injected_commit_message:"Commit message tries to hijack the AI"};
+const MODE = {raw:"Gemini on the raw evidence", reconciled:"Gemini with reconciliation + validator"};
+let current=null, incidentTime=null;
+
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  let body=null; try{body=await r.json();}catch(e){}
+  if(!r.ok) throw new Error((body&&body.detail)||("HTTP "+r.status));
+  return body;
+}
+function rel(iso){const m=Math.round((incidentTime-new Date(iso))/60000); return m>=0?("T\u2212"+m+"m"):("T+"+(-m)+"m");}
+
+function summarise(e){
+  const d=e.data||{};
+  switch(e.kind){
+    case "commit": return [d.sha+" touches "+(d.touches||[]).join(", "), d.message];
+    case "build": return ["Build of "+d.sha, "artifact "+d.digest];
+    case "deploy": return ["Deploy "+d.status, "artifact "+d.digest];
+    case "rollout": return ["Orchestrator reports rollout "+d.status, "deploy "+d.deploy_id];
+    case "runtime_version": return ["Runtime probe sees artifact", d.digest];
+    case "config_change": return ["Config "+d.key+": "+d.old+" \u2192 "+d.new, d.deploy_id?("deploy "+d.deploy_id):"no deploy record"];
+    default: return [e.kind, JSON.stringify(d)];
+  }
+}
+
+async function init(){
+  try{const h=await api("/healthz");
+    $("status").textContent="Synthetic incidents only. Read-only: nothing here changes any system. "+
+      (h.llm_configured?"Live Gemini is available (capped).":"Live Gemini is off; recorded results and the deterministic engine still work.");
+  }catch(e){}
+  const list=await api("/api/incidents"), nav=$("list");
+  list.forEach(i=>{const b=el("button"); b.dataset.id=i.id;
+    b.append(el("div","t",LABEL[i.type]||i.type), el("div","s",i.id+": "+i.symptom));
+    b.addEventListener("click",()=>select(i.id)); nav.append(b);});
+  if(list.length) select(list[0].id);
+}
+
+async function select(id){
+  current=id;
+  document.querySelectorAll("#list button").forEach(b=>b.setAttribute("aria-current", b.dataset.id===id));
+  const [inc, rec, recd] = await Promise.all([api("/api/incidents/"+id), api("/api/incidents/"+id+"/reconciliation"),
+    api("/api/incidents/"+id+"/recorded").catch(()=>({rows:[]}))]);
+  incidentTime=new Date(inc.incident_time);
+  renderLedger(inc); renderSide(inc, rec, recd);
+}
+
+function renderLedger(inc){
+  const m=$("main"); m.replaceChildren();
+  m.append(el("h2","symptom",inc.symptom));
+  m.append(el("div","sub","Incident "+inc.id+" at "+incidentTime.toUTCString()+". Observed facts: every record the system holds, oldest first. Hatched rows reached us after the incident, so an investigator at that moment could not have seen them."));
+  const ol=el("ol","ledger");
+  inc.evidence.forEach(e=>{
+    const li=el("li","ev s-"+e.source+(e.visible_at_incident?"":" late")); li.dataset.id=e.id;
+    const [what,detail]=summarise(e);
+    li.append(el("span","tm",rel(e.event_time)), el("div","what",what), el("div","detail",detail||""),
+      el("div","src",e.source+" / "+e.kind));
+    if(!e.visible_at_incident) li.append(el("div","lt","Ingested "+rel(e.ingest_time)+": invisible to the investigation"));
+    li.append(el("div","id",e.id)); ol.append(li);
+  });
+  m.append(ol, el("div","incident-mark","Incident: "+inc.symptom));
+  m.append(recordedBlock());
+}
+
+function citeBtn(id){const b=el("button","cite",id); b.addEventListener("click",()=>{
+  const t=document.querySelector('.ev[data-id="'+CSS.escape(id)+'"]'); if(!t){return;}
+  t.scrollIntoView({block:"center",behavior:"smooth"}); t.classList.add("flash"); setTimeout(()=>t.classList.remove("flash"),2200);}); return b;}
+
+function listCard(cls,title,items,mk){ if(!items||!items.length) return null;
+  const c=el("div","card "+cls); c.append(el("div","k",title)); items.forEach(i=>{const d=el("div"); mk(d,i); c.append(d);}); return c;}
+
+function renderSide(inc, rec, recd){
+  const s=$("side"); s.replaceChildren();
+  s.append(el("h2",null,"Investigation"));
+  const btns=el("div","btns");
+  [["deterministic","Reconcile only (no AI, free)"],["raw","Ask Gemini: raw evidence"],["reconciled","Ask Gemini: reconciled + validated"]].forEach(([mode,label])=>{
+    const b=el("button",null,label); b.addEventListener("click",()=>run(mode,btns,b)); btns.append(b);});
+  s.append(btns, el("div","small","Gemini calls are capped per day to protect a free quota. Recorded results below always work."));
+  s.append(el("div",null)); s.lastChild.id="result";
+
+  s.append(el("h3",null,"Derived: what was live (deterministic)"));
+  const live=el("div","card"); live.append(el("div","k","Live version"));
+  live.append(el("div",null,(rec.active_digests.length?rec.active_digests.join(" or "):"Cannot be established")+"  ["+rec.confidence+" confidence]"));
+  live.append(el("div","small",rec.basis)); s.append(live);
+  const co=listCard("contra","Contradictory evidence",rec.contradictions,(d,c)=>{
+    d.append(el("div",null,c.type.replace(/_/g," ")+(c.deploy_log_digest?": deploy log says "+c.deploy_log_digest+", runtime says "+c.runtime_digest:"")));
+    (c.records||[]).forEach(r=>{d.append(citeBtn(r)); d.append(document.createTextNode(" "));});}); if(co)s.append(co);
+  const mi=listCard("missing","Missing evidence",rec.missing_evidence,(d,t)=>d.append(el("div",null,t))); if(mi)s.append(mi);
+  const t=el("table"); t.append(el("tr")); ["Change","Status","Why"].forEach(h=>t.lastChild.append(el("th",null,h)));
+  rec.changes.forEach(c=>{const tr=el("tr"); const a=el("td"); a.append(citeBtn(c.id)); const st=el("td"); st.append(el("span","chip c-"+c.status,c.status.replace("_"," ")));
+    tr.append(a,st,el("td","small",c.note)); t.append(tr);}); s.append(t);
+
+  s.append(recordedForIncident(recd));
+  const tb=el("details"); tb.append(el("summary",null,"Reveal ground truth (never shown to any investigator)"));
+  const body=el("div","card"); tb.append(body);
+  tb.addEventListener("toggle",async()=>{ if(tb.open && !body.textContent){const g=await api("/api/incidents/"+inc.id+"/truth");
+    body.append(el("div",null,g.answerable?"Answerable. True cause:":"Not answerable from the evidence: the correct output is to abstain."));
+    if(g.cause_id) body.append(citeBtn(g.cause_id));}});
+  s.append(tb);
+}
+
+async function run(mode, btns, btn){
+  const out=$("result"); out.replaceChildren(el("div","small","Working\u2026"));
+  btns.querySelectorAll("button").forEach(b=>b.disabled=true);
+  try{ const r=await api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})});
+    out.replaceChildren(renderResult(mode,r));
+  }catch(e){ out.replaceChildren(el("div","card contra err","Could not run: "+e.message)); }
+  finally{ btns.querySelectorAll("button").forEach(b=>b.disabled=false); }
+}
+
+function renderResult(mode,r){
+  const wrap=el("div"); wrap.append(el("h3",null,"Hypothesis: "+(mode==="deterministic"?"deterministic engine":MODE[mode])));
+  if(r.error){ wrap.append(el("div","card contra err","Model call failed: "+r.error)); return wrap; }
+  const o=r.output||{}; const abst=r.abstained;
+  const v=el("div","card "+(abst?"abstain":"verdict"));
+  v.append(el("div","k",abst?"Verdict: insufficient evidence, no cause asserted":"Verdict: probable cause"));
+  if(!abst) v.append(citeBtn(r.cause_id));
+  const why = mode==="deterministic" ? r.reason : o.reasoning; if(why) v.append(el("div",null,why));
+  if(o.confidence) v.append(el("div","small","Model confidence: "+o.confidence));
+  wrap.append(v);
+  if(r.flags&&r.flags.length){const f=el("div","card contra"); f.append(el("div","k","Validator and checks")); r.flags.forEach(x=>f.append(el("div",null,x.replace(/_/g," ")))); wrap.append(f);}
+  const cites=(o.cited_evidence_ids||r.evidence_ids||[]);
+  if(cites.length){const c=el("div","card"); c.append(el("div","k","Evidence it relied on")); cites.forEach(i=>{c.append(citeBtn(i)); c.append(el("br"));}); wrap.append(c);}
+  const mi=listCard("missing","Evidence that would settle it",o.missing_evidence,(d,t)=>d.append(el("div",null,t))); if(mi)wrap.append(mi);
+  const ac=listCard("","Suggested next steps (advisory, never executed)",o.suggested_actions,(d,t)=>d.append(el("div",null,"\u2022 "+t))); if(ac)wrap.append(ac);
+  if(r.prompt_tokens) wrap.append(el("div","small",r.prompt_tokens+" prompt / "+r.output_tokens+" output tokens, "+r.latency_s.toFixed(1)+"s"+(r.cached?" (cached)":"")));
+  return wrap;
+}
+
+let RESULTS=null;
+function recordedBlock(){
+  const d=el("div","recorded"); d.append(el("h3",null,"Recorded benchmark"));
+  const box=el("div"); d.append(box);
+  (async()=>{ try{ RESULTS=RESULTS||await api("/api/results"); }catch(e){RESULTS={available:false};}
+    if(!RESULTS.available){ box.append(el("div","small","No recorded results are bundled with this deployment.")); return; }
+    box.append(el("div","small","Model "+RESULTS.model+". Synthetic, author-written scenarios; small sample; each case run twice."+(RESULTS.partial?" PARTIAL RUN.":"")));
+    const cols=["correct","correct_abstain","confident_wrong","missed","error","validator_interventions"];
+    const t=el("table"); const h=el("tr"); ["Mode",...cols.map(c=>c.replace(/_/g," "))].forEach(x=>h.append(el("th",null,x))); t.append(h);
+    Object.keys(RESULTS.total).forEach(m=>{const tr=el("tr"); tr.append(el("td",null,MODE[m]||m)); cols.forEach(c=>tr.append(el("td",null,String(RESULTS.total[m][c]||0)))); t.append(tr);});
+    box.append(t);
+    box.append(el("div","small","\u201Cmissed\u201D means the model abstained although the evidence was sufficient. \u201Cconfident wrong\u201D means it named the wrong cause, or named one when it should have abstained."));
+  })(); return d;}
+
+function recordedForIncident(recd){
+  const w=el("div"); w.append(el("h3",null,"Recorded Gemini runs for this incident"));
+  if(!recd.rows.length){w.append(el("div","small","None recorded.")); return w;}
+  recd.rows.forEach(r=>{const c=el("div","card"); c.append(el("div","k",(MODE[r.mode]||r.mode)+", run "+(r.repeat+1)+" ("+recd.model+")"));
+    c.append(el("span","chip "+((r.outcome==="correct"||r.outcome==="correct_abstain")?"c-ok":(r.outcome==="missed"?"c-warn":"c-bad")),r.outcome.replace("_"," ")));
+    if(r.reasoning) c.append(el("div","small",r.reasoning)); w.append(c);});
+  return w;
+}
+init().catch(e=>{$("main").replaceChildren(el("p","err","Failed to load: "+e.message));});
+</script>
+</body>
+</html>

@@ -69,6 +69,7 @@ class Scenario:
     symptom: str
     evidence: list[Evidence]
     truth: Truth
+    injected_id: str | None = None   # commit whose message tries to hijack the investigator
 
 
 @dataclass

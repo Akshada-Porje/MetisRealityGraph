@@ -8,7 +8,7 @@ c = TestClient(app)
 def test_health_and_list():
     assert c.get("/healthz").json()["ok"] is True
     ids = [i["id"] for i in c.get("/api/incidents").json()]
-    assert len(ids) == 16 and len(set(ids)) == 16
+    assert len(ids) == 32 and len(set(ids)) == 32    # v2 default: 16 types x 2 reps
 
 
 def test_late_evidence_marked_not_visible():

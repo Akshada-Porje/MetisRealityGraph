@@ -3,234 +3,329 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Metis: evidence-grounded incident investigation</title>
+<title>Metis &mdash; Incident Investigation</title>
 <style>
 :root{
-  --paper:#eef1f4; --panel:#ffffff; --ink:#14213d; --muted:#5b6678; --rule:#cfd6df;
-  --fact:#2b59c3; --ok:#2f7d4f; --warn:#a86a0a; --bad:#b3261e; --dim:#8a94a4;
-  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --bg:#f5f7fa; --surface:#ffffff; --ink:#1a1d23; --secondary:#5f6c7b; --border:#e2e6ec;
+  --accent:#4f6ef7; --accent-light:#eef1fe; --green:#1a9a5c; --green-light:#e8f8f0;
+  --orange:#d97706; --orange-light:#fef3e2; --red:#dc3545; --red-light:#fce8ea;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  --radius:10px; --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-lg:0 4px 16px rgba(0,0,0,.1),0 2px 4px rgba(0,0,0,.06);
 }
 @media (prefers-color-scheme:dark){
-  :root{--paper:#10151f;--panel:#182030;--ink:#e6ebf4;--muted:#9aa6ba;--rule:#2c3750;
-        --fact:#7aa2ff;--ok:#5cc08a;--warn:#e0a640;--bad:#ff7b72;--dim:#6b7790}
+  :root{--bg:#0f1117;--surface:#1a1d27;--ink:#e8ecf4;--secondary:#8893a7;--border:#2a2f3d;
+        --accent:#6b8aff;--accent-light:#1e2540;--green:#34d399;--green-light:#132a21;
+        --orange:#fbbf24;--orange-light:#2a2210;--red:#f87171;--red-light:#2a1517;
+        --shadow:0 1px 3px rgba(0,0,0,.3);--shadow-lg:0 4px 16px rgba(0,0,0,.4)}
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
-h1,h2,h3{font-family:var(--serif);font-weight:600;margin:0}
-button{font:inherit;cursor:pointer}
-:focus-visible{outline:2px solid var(--fact);outline-offset:2px}
-header{padding:18px 24px 14px;border-bottom:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:8px 24px;align-items:baseline}
-header h1{font-size:28px;letter-spacing:.01em}
-header .tag{color:var(--muted);font-family:var(--serif);font-style:italic}
-header .note{margin-left:auto;color:var(--muted);font-size:13px;max-width:560px}
-.layout{display:grid;grid-template-columns:260px minmax(0,1fr) 400px;gap:0;min-height:calc(100vh - 80px)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--font)}
+button{font:inherit;cursor:pointer;border:0;background:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ===== HEADER ===== */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;height:60px;gap:16px;position:sticky;top:0;z-index:10}
+.topbar .logo{font:700 22px var(--font);color:var(--accent);letter-spacing:-.02em}
+.topbar .logo span{color:var(--ink)}
+.topbar .sep{width:1px;height:28px;background:var(--border)}
+.topbar .pills{display:flex;gap:6px}
+.topbar .pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em}
+.pill-safe{background:var(--green-light);color:var(--green)}
+.pill-data{background:var(--accent-light);color:var(--accent)}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.topbar .status-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.topbar .status-text{font-size:13px;color:var(--secondary)}
+
+/* ===== QUICK START BAR ===== */
+.quickstart{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.quickstart .qs-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--secondary)}
+.qs-btn{padding:7px 16px;border-radius:20px;font-size:13px;font-weight:500;border:1px solid var(--border);background:var(--surface);color:var(--ink);transition:all .15s}
+.qs-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.qs-btn .num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;margin-right:6px}
+.compose-btn{padding:7px 16px;border-radius:20px;font-size:13px;font-weight:600;background:var(--accent);color:#fff;border:1px solid var(--accent);transition:all .15s}
+.compose-btn:hover{filter:brightness(1.1)}
+.qs-help{margin-left:auto}
+.qs-help button{font-size:13px;color:var(--secondary);text-decoration:underline;text-underline-offset:2px}
+
+/* ===== LAYOUT ===== */
+.layout{display:grid;grid-template-columns:280px minmax(0,1fr) 420px;min-height:calc(100vh - 108px)}
 @media (max-width:1100px){.layout{grid-template-columns:1fr}}
-nav{border-right:1px solid var(--rule);padding:12px 8px;overflow:auto;max-height:calc(100vh - 80px)}
-@media (max-width:1100px){nav{border-right:0;border-bottom:1px solid var(--rule);max-height:260px}}
-nav button{display:block;width:100%;text-align:left;background:none;border:0;border-left:3px solid transparent;padding:8px 10px;color:var(--ink)}
-nav button:hover{background:var(--panel)}
-nav button[aria-current=true]{background:var(--panel);border-left-color:var(--fact)}
-nav .t{font-weight:600;font-size:14px}
-nav .s{color:var(--muted);font-size:12px}
-main{padding:20px 24px;min-width:0}
-aside{border-left:1px solid var(--rule);padding:20px;background:var(--panel);overflow:auto}
-@media (max-width:1100px){aside{border-left:0;border-top:1px solid var(--rule)}}
-.symptom{font-family:var(--serif);font-size:20px;margin:4px 0 2px}
-.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
-.ledger{position:relative;margin:0;padding:0;list-style:none;border-left:2px solid var(--rule);margin-left:56px}
-.ev{position:relative;padding:6px 10px 8px 16px;margin:0 0 2px;border-radius:2px}
-.ev .tm{position:absolute;left:-62px;width:52px;text-align:right;font:12px var(--mono);color:var(--muted);top:8px}
-.ev::before{content:"";position:absolute;left:-6px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--fact);border:2px solid var(--paper)}
-.ev.s-git::before{background:var(--ok)} .ev.s-orchestrator::before,.ev.s-k8s_audit::before{background:var(--warn)}
-.ev.s-runtime::before{background:var(--ink)}
-.ev .what{font-weight:600}
-.ev .src{font:12px var(--mono);color:var(--muted)}
-.ev .detail{color:var(--ink);overflow-wrap:anywhere}
-.ev .id{font:11px var(--mono);color:var(--dim);overflow-wrap:anywhere}
-.ev.late{opacity:.62;background:repeating-linear-gradient(135deg,transparent 0 8px,rgba(138,148,164,.18) 8px 9px)}
-.ev.late .lt{color:var(--bad);font-size:12px;font-weight:600}
-.ev.flash{outline:2px solid var(--fact);background:rgba(43,89,195,.10)}
-.incident-mark{margin:10px 0 0 -2px;padding:8px 12px;border-left:4px solid var(--bad);background:var(--panel);font-weight:600}
-h3{font-size:16px;margin:18px 0 6px}
-.chip{display:inline-block;font:600 12px var(--sans);padding:1px 8px;border-radius:10px;border:1px solid currentColor;margin-right:6px}
-.c-DEPLOYED,.c-ok{color:var(--ok)} .c-APPLIED{color:var(--fact)} .c-NOT_DEPLOYED{color:var(--dim)}
-.c-UNKNOWN,.c-warn{color:var(--warn)} .c-bad{color:var(--bad)}
-.btns{display:flex;flex-direction:column;gap:8px;margin:8px 0 4px}
-.btns button{padding:9px 12px;border:1px solid var(--ink);background:var(--panel);color:var(--ink);border-radius:3px;text-align:left}
-.btns button:hover:not(:disabled){background:var(--ink);color:var(--panel)}
-.btns button:disabled{opacity:.5;cursor:wait}
-.card{border:1px solid var(--rule);border-radius:3px;padding:10px 12px;margin:8px 0;background:var(--paper)}
-.card.verdict{border-left:4px solid var(--fact)} .card.abstain{border-left:4px solid var(--warn)}
-.card.contra{border-left:4px solid var(--bad)} .card.missing{border-left:4px solid var(--warn)}
-.card .k{font-size:12px;color:var(--muted);margin-bottom:2px}
-.cite{font:12px var(--mono);background:none;border:0;color:var(--fact);text-decoration:underline;padding:0;text-align:left;overflow-wrap:anywhere}
+
+/* ===== SIDEBAR ===== */
+.sidebar{border-right:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 108px);padding:8px}
+@media (max-width:1100px){.sidebar{border-right:0;border-bottom:1px solid var(--border);max-height:260px}}
+.sidebar .group-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--secondary);padding:14px 12px 6px}
+.inc-btn{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:var(--radius);margin-bottom:2px;transition:background .15s}
+.inc-btn:hover{background:var(--accent-light)}
+.inc-btn[aria-current=true]{background:var(--accent-light);box-shadow:inset 3px 0 0 var(--accent)}
+.inc-btn .inc-title{font-weight:600;font-size:14px;line-height:1.3}
+.inc-btn .inc-sub{color:var(--secondary);font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* ===== MAIN PANEL ===== */
+main{padding:24px;overflow-y:auto;max-height:calc(100vh - 108px)}
+@media (max-width:1100px){main{max-height:none}}
+.incident-header{margin-bottom:20px}
+.incident-header h2{font-size:22px;font-weight:700;line-height:1.3}
+.incident-meta{color:var(--secondary);font-size:13px;margin-top:4px}
+
+/* Timeline */
+.timeline{position:relative;padding-left:28px}
+.timeline::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;background:var(--border)}
+.tl-item{position:relative;padding:8px 0 12px}
+.tl-item::before{content:"";position:absolute;left:-21px;top:12px;width:12px;height:12px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);z-index:1}
+.tl-item.src-git::before{background:var(--green)}
+.tl-item.src-orchestrator::before,.tl-item.src-k8s_audit::before{background:var(--orange)}
+.tl-item.src-runtime::before{background:var(--ink)}
+.tl-item.src-ci::before{background:#8b5cf6}
+.tl-item.src-deploy_log::before{background:var(--accent)}
+.tl-item.late{opacity:.6}
+.tl-item.late .tl-card{border-left:3px solid var(--orange);background:var(--orange-light)}
+.tl-item.flash .tl-card{outline:2px solid var(--accent);background:var(--accent-light)}
+.tl-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;box-shadow:var(--shadow)}
+.tl-time{font:12px var(--mono);color:var(--secondary);margin-bottom:2px}
+.tl-what{font-weight:600;font-size:14px}
+.tl-detail{color:var(--secondary);font-size:13px}
+.tl-source{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:4px;background:var(--accent-light);color:var(--accent);margin-top:4px}
+.tl-late{color:var(--red);font-size:12px;font-weight:600;margin-top:4px}
+.tl-id{font:11px var(--mono);color:var(--secondary);margin-top:2px;overflow-wrap:anywhere}
+.tl-incident-mark{margin:12px 0 8px -28px;padding:10px 16px;background:var(--red-light);border-radius:var(--radius);font-weight:700;color:var(--red);font-size:14px;border-left:4px solid var(--red)}
+
+/* Time travel */
+.time-travel{display:flex;align-items:center;gap:8px;margin:16px 0;flex-wrap:wrap}
+.time-travel .label{font-size:13px;color:var(--secondary)}
+.tt-btn{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--surface);transition:all .15s}
+.tt-btn:hover{border-color:var(--accent)}
+.tt-btn[aria-current=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ===== RIGHT PANEL ===== */
+aside{border-left:1px solid var(--border);background:var(--surface);padding:20px;overflow-y:auto;max-height:calc(100vh - 108px);position:sticky;top:108px;align-self:start}
+@media (max-width:1100px){aside{border-left:0;border-top:1px solid var(--border);position:static;max-height:none}}
+
+.panel-section{margin-bottom:20px}
+.panel-title{font-size:16px;font-weight:700;margin-bottom:8px}
+.panel-subtitle{font-size:13px;color:var(--secondary);margin-bottom:12px}
+
+/* Action buttons */
+.actions{display:flex;flex-direction:column;gap:8px}
+.action-btn{padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);text-align:left;background:var(--surface);transition:all .15s;box-shadow:var(--shadow)}
+.action-btn:hover:not(:disabled){border-color:var(--accent);background:var(--accent-light)}
+.action-btn:disabled{opacity:.5;cursor:wait}
+.action-btn .action-name{font-weight:600;font-size:14px}
+.action-btn .action-desc{font-size:12px;color:var(--secondary);margin-top:2px}
+.action-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.action-btn.primary .action-desc{color:rgba(255,255,255,.8)}
+.action-btn.primary:hover:not(:disabled){filter:brightness(1.1)}
+
+/* Status glance */
+.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.status-box{border:1px solid var(--border);border-radius:var(--radius);padding:10px;text-align:center;background:var(--bg)}
+.status-box .num{font-size:24px;font-weight:800;display:block}
+.status-box .lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--secondary)}
+.num-live{color:var(--green)} .num-notlive{color:var(--secondary)} .num-unclear{color:var(--orange)}
+
+/* Info cards */
+.info-card{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin:8px 0;background:var(--bg)}
+.info-card.highlight{border-left:4px solid var(--accent)}
+.info-card.warning{border-left:4px solid var(--orange)}
+.info-card.danger{border-left:4px solid var(--red)}
+.info-card .card-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--secondary);margin-bottom:4px}
+.info-card .card-body{font-size:14px}
+
+/* Chips */
+.chip{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.03em}
+.chip-live{background:var(--green-light);color:var(--green)}
+.chip-notlive{background:var(--bg);color:var(--secondary);border:1px solid var(--border)}
+.chip-unclear{background:var(--orange-light);color:var(--orange)}
+.chip-applied{background:var(--accent-light);color:var(--accent)}
+
+/* Citation links */
+.cite{font:12px var(--mono);background:none;border:0;color:var(--accent);text-decoration:underline;text-underline-offset:2px;padding:0;text-align:left;overflow-wrap:anywhere;cursor:pointer}
+
+/* Results banner */
+.result-banner{border-radius:var(--radius);padding:16px 18px;margin:10px 0;color:#fff;font-weight:700;font-size:16px}
+.result-banner.found{background:var(--accent)}
+.result-banner.notenough{background:var(--orange)}
+.result-banner.rejected{background:var(--red)}
+.result-banner .banner-sub{display:block;font:400 13px var(--font);opacity:.9;margin-top:4px}
+
+/* Pipeline trace */
+.trace{margin:8px 0 12px;padding-left:4px}
+.step{position:relative;margin:0 0 4px 14px;padding:4px 0 10px 20px;border-left:2px solid var(--border)}
+.step::before{content:"";position:absolute;left:-8px;top:8px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--secondary)}
+.step.done::before{background:var(--green);border-color:var(--green)}
+.step.running::before{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+.step.warn::before{background:var(--orange);border-color:var(--orange)}
+.step.bad::before{background:var(--red);border-color:var(--red)}
+.step .step-title{font-weight:600;font-size:14px}
+.step .step-badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:3px;margin-left:6px;border:1px solid var(--border)}
+.step .step-badge.ai{color:var(--accent);border-color:var(--accent)} .step .step-badge.code{color:var(--green);border-color:var(--green)}
+.step .step-detail{font-size:13px;color:var(--secondary);margin-top:2px}
+.step .step-detail b{color:var(--ink)}
+.step pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:200px;overflow:auto;font:11px/1.4 var(--mono);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;margin:6px 0 0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Recovery card */
+.recovery{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:12px 0}
+.recovery .rec-head{background:var(--bg);padding:10px 14px;font-weight:700;font-size:14px;border-bottom:1px solid var(--border)}
+.recovery .rec-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)}
+.recovery .rec-row:last-child{border-bottom:0}
+.rec-col{padding:12px 14px}
+.rec-col+.rec-col{border-left:1px solid var(--border)}
+.rec-col .rec-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--secondary);margin-bottom:4px}
+.rec-col .rec-action{font-weight:700;font-size:14px}
+.validity-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;text-transform:uppercase;letter-spacing:.04em}
+.pill-valid{background:var(--green);color:#fff}
+.pill-invalid{background:var(--red);color:#fff}
+.rec-col .rec-why{color:var(--secondary);font-size:12px;margin-top:4px}
+.recovery .rec-foot{padding:8px 14px;background:var(--bg);font-size:11px;color:var(--secondary);border-top:1px solid var(--border)}
+
+/* Table */
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{border-bottom:1px solid var(--rule);padding:4px 6px;text-align:left;vertical-align:top}
-th{font-weight:600;color:var(--muted)}
-.err{color:var(--bad)} .small{font-size:12px;color:var(--muted)}
-details{margin-top:14px} summary{cursor:pointer;font-weight:600}
-.recorded{margin:24px 0 8px;padding-top:14px;border-top:1px solid var(--rule)}
-@media (prefers-reduced-motion:no-preference){.ev{transition:background .3s}}
-header{position:sticky;top:0;z-index:5;background:var(--paper)}
-.badge{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:10px;background:var(--panel);border:1px solid var(--rule);color:var(--muted)}
-.demo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;margin-top:4px}
-.demo .lbl{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
-.demo button{border:1px solid var(--fact);color:var(--fact);background:transparent;border-radius:16px;padding:4px 12px;font-size:13px}
-.demo button:hover{background:var(--fact);color:var(--panel)}
-.demo .legend{margin-left:auto}
-.demo .legend summary{font-weight:500;font-size:13px;color:var(--muted)}
-.legendbox{position:absolute;right:24px;top:100%;background:var(--panel);border:1px solid var(--rule);padding:10px 14px;border-radius:4px;box-shadow:0 6px 20px rgba(0,0,0,.15);max-width:420px;font-size:13px}
-.legendbox div{margin:4px 0}
-nav{padding-top:8px}
-nav .grp{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 10px 4px}
-nav .s{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
-@media (max-width:1100px){aside{position:static;max-height:none}}
-.glance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
-.glance div{border:1px solid var(--rule);border-radius:4px;padding:8px;text-align:center;background:var(--paper)}
-.glance b{display:block;font:700 22px var(--serif)}
-.glance span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-.headline{font:600 16px var(--serif);margin:6px 0}
-.btns button.primary{background:var(--fact);border-color:var(--fact);color:#fff;font-weight:600}
-.btns button.primary:hover:not(:disabled){background:var(--ink);border-color:var(--ink)}
-.btns button small{display:block;font-weight:400;opacity:.85;font-size:12px}
-.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--rule);border-top-color:var(--fact);border-radius:50%;margin-right:6px;vertical-align:-2px;animation:sp .8s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}
-.banner{border-radius:4px;padding:12px 14px;margin:8px 0;color:#fff;font:600 17px var(--serif)}
-.banner.v{background:var(--fact)} .banner.a{background:var(--warn)} .banner.x{background:var(--bad)}
-.banner small{display:block;font:400 13px var(--sans);opacity:.92;margin-top:2px}
+th,td{border-bottom:1px solid var(--border);padding:6px 8px;text-align:left}
+th{font-weight:700;color:var(--secondary);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+details{margin-top:12px} summary{cursor:pointer;font-weight:600;font-size:14px}
 
-.trace{margin:6px 0 10px;padding-left:4px}
-.stage{position:relative;margin:0 0 4px 12px;padding:2px 0 8px 18px;border-left:2px solid var(--rule)}
-.stage::before{content:"";position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--panel);border:2px solid var(--dim)}
-.stage.done::before{background:var(--ok);border-color:var(--ok)}
-.stage.run::before{border-color:var(--fact);border-top-color:transparent;animation:sp .8s linear infinite}
-.stage.warn::before{background:var(--warn);border-color:var(--warn)}
-.stage.bad::before{background:var(--bad);border-color:var(--bad)}
-.stage .st{font-weight:600;font-size:14px}
-.stage .sd{font-size:13px;color:var(--muted)}
-.stage .sd b{color:var(--ink)}
-.stage pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;font:11px/1.4 var(--mono);background:var(--paper);border:1px solid var(--rule);padding:8px;margin:6px 0 0}
-.stage details{margin-top:4px}
-.stage .who{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;padding:0 6px;border-radius:3px;margin-left:6px;background:var(--panel);border:1px solid var(--rule)}
+/* Recorded */
+.recorded{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.small{font-size:12px;color:var(--secondary)}
+.err{color:var(--red)}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;margin-right:6px;vertical-align:-2px;animation:spin .8s linear infinite}
+@media (prefers-reduced-motion:no-preference){.step{animation:fadeIn .3s ease both}@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}}}
 
-.stage .who.code{color:var(--ok)} .stage .who.ai{color:var(--fact)}
-.recov{margin-top:16px;border:1px solid var(--rule);border-radius:4px;overflow:hidden}
-.recov h3{background:var(--panel);padding:8px 12px;margin:0;font-size:14px;border-bottom:1px solid var(--rule)}
-.recov .row{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--rule)}
-.recov .row:last-child{border-bottom:0}
-.recov .c{padding:10px 12px;font-size:13px}
-.recov .c + .c{border-left:1px solid var(--rule)}
-.recov .lbl{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:4px}
-.recov .act{font:600 14px var(--serif)}
-.recov .pill{display:inline-block;font:600 10px var(--sans);padding:1px 6px;border-radius:9px;margin-left:6px;text-transform:uppercase;letter-spacing:.05em}
-.recov .pill.ok{background:#2f7d4f;color:#fff} .recov .pill.bad{background:#b3261e;color:#fff}
-.recov .why{color:var(--muted);margin-top:4px}
-.recov .foot{padding:8px 12px;background:var(--panel);font-size:12px;color:var(--muted);border-top:1px solid var(--rule)}
-.tt{display:flex;align-items:center;gap:6px;margin:6px 0 10px;font-size:13px;flex-wrap:wrap}
-.tt button{border:1px solid var(--rule);background:var(--panel);padding:3px 10px;border-radius:14px;font-size:12px}
-
-.tt button[aria-current=true]{background:var(--fact);color:#fff;border-color:var(--fact)}
-.compose-btn{background:var(--fact);color:#fff;border:1px solid var(--fact);padding:4px 12px;border-radius:14px;font-weight:600;font-size:13px}
-.compose-btn:hover{background:var(--ink);border-color:var(--ink)}
+/* ===== MODAL ===== */
 #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center;padding:16px}
 #modal.open{display:flex}
-#modal .mbox{background:var(--paper);border-radius:6px;max-width:960px;width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
-#modal .mhead{padding:14px 20px;border-bottom:1px solid var(--rule);display:flex;align-items:baseline;gap:12px}
-#modal .mhead h2{margin:0;font-size:22px}
-#modal .mhead .close{margin-left:auto;background:none;border:0;font-size:24px;color:var(--muted);padding:0 4px}
-#modal .mbody{padding:16px 20px;overflow:auto;flex:1}
-#modal .mcols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+#modal .mbox{background:var(--bg);border-radius:12px;max-width:960px;width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg)}
+#modal .mhead{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface)}
+#modal .mhead h2{font-size:20px;font-weight:700}
+#modal .mhead .desc{font-size:13px;color:var(--secondary)}
+#modal .mhead .close{margin-left:auto;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--secondary);transition:background .15s}
+#modal .mhead .close:hover{background:var(--bg)}
+#modal .mbody{padding:20px 24px;overflow:auto;flex:1}
+#modal .mcols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 @media (max-width:900px){#modal .mcols{grid-template-columns:1fr}}
-#modal label{display:block;font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
-#modal input, #modal select, #modal textarea{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:3px;padding:6px 8px;font:14px var(--sans)}
+
+.preset-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.preset-bar .p-label{font-size:12px;font-weight:700;color:var(--secondary);width:100%;margin-bottom:2px}
+.preset-btn{padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid var(--border);background:var(--surface);transition:all .15s}
+.preset-btn:hover{border-color:var(--accent);color:var(--accent)}
+#modal label{display:block;font-size:12px;font-weight:700;color:var(--secondary);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+#modal input,#modal select,#modal textarea{width:100%;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:14px var(--font)}
 #modal textarea{font:12px var(--mono);min-height:60px;resize:vertical}
-#modal .mfoot{padding:12px 20px;border-top:1px solid var(--rule);display:flex;gap:10px;align-items:center;background:var(--panel)}
-#modal .mfoot button.go{background:var(--fact);color:#fff;border:1px solid var(--fact);padding:7px 18px;border-radius:3px;font-weight:600}
-#modal .mfoot button.go:disabled{opacity:.5}
-#modal .evlist{border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin:4px 0}
-#modal .evrow{display:grid;grid-template-columns:70px 90px 60px auto 24px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--rule);align-items:center;font-size:12px}
+#modal .mfoot{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;background:var(--surface)}
+#modal .mfoot .go{background:var(--accent);color:#fff;border:0;padding:9px 22px;border-radius:8px;font-weight:700;font-size:14px;transition:filter .15s}
+#modal .mfoot .go:hover:not(:disabled){filter:brightness(1.1)}
+#modal .mfoot .go:disabled{opacity:.5}
+#modal .evlist{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin:4px 0}
+#modal .evrow{display:grid;grid-template-columns:70px 90px 60px auto 28px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);align-items:center;font-size:12px}
 #modal .evrow:last-child{border-bottom:0}
-#modal .evrow select, #modal .evrow input{padding:3px 5px;font-size:12px}
-#modal .evrow button{background:none;border:0;color:var(--bad);font-size:16px}
-#modal .pb{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
-#modal .pb button{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:3px 10px;font-size:12px;color:var(--ink)}
-#modal .pb button:hover{background:var(--ink);color:var(--paper)}
+#modal .evrow select,#modal .evrow input{padding:4px 6px;font-size:12px;border-radius:6px}
+#modal .evrow button{color:var(--red);font-size:16px;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center}
+#modal .evrow button:hover{background:var(--red-light)}
+#modal .add-btns{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+#modal .add-btns button{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;transition:all .15s}
+#modal .add-btns button:hover{border-color:var(--accent);color:var(--accent)}
 #modal .results{margin-top:8px}
-#modal .preset{margin:4px 0 12px;font-size:12px;color:var(--muted)}
-#modal .preset button{background:none;border:0;color:var(--fact);text-decoration:underline;padding:0 4px;font:inherit}
-
-
-@media (prefers-reduced-motion:no-preference){.stage{animation:fi .35s ease both}@keyframes fi{from{opacity:0;transform:translateY(4px)}}}
-
-.kind{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:0 5px;margin-right:6px;color:var(--muted)}
+.headline{font-weight:700;font-size:16px;margin:6px 0}
 
 </style>
 </head>
 <body>
-<header>
-  <h1>Metis</h1><span class="tag">Practical Intelligence. Engineered.</span>
-  <span class="badge">Synthetic data</span><span class="badge">Read-only</span>
-  <span class="note" id="status">Synthetic incidents only. Read-only: nothing here changes any system.</span>
-  <div class="demo" id="demo"><span class="lbl">Guided demo</span>
-    <button data-go="undeployed-0">1 &middot; A fix that never shipped</button>
-    <button data-go="conflict-0">2 &middot; Records that disagree</button>
-    <button data-go="late-0">3 &middot; A late-arriving record</button>
-    <button data-go="injected-0">4 &middot; Hostile commit message</button>
-    <button class="compose-btn" id="composeBtn" title="Build your own incident">+ Build an incident</button>
-    <details class="legend"><summary>How to read this</summary><div class="legendbox">
-      <div><b>Left:</b> every incident. <b>Middle:</b> raw evidence in time order (facts only).</div>
-      <div><b>Right:</b> what the deterministic engine concludes, then what Gemini says.</div>
-      <div><span class="chip c-DEPLOYED">DEPLOYED</span> positive evidence it was live &nbsp;<span class="chip c-NOT_DEPLOYED">NOT DEPLOYED</span> positive evidence it was not</div>
-      <div><span class="chip c-UNKNOWN">UNKNOWN</span> evidence missing, late or contradictory</div>
-      <div>Hatched rows reached the ledger after the incident. Click any blue ID to jump to its record.</div></div></details></div>
-</header>
+<div class="topbar">
+  <div class="logo"><span>Metis</span></div>
+  <div class="sep"></div>
+  <div class="pills">
+    <span class="pill pill-safe">Read-only</span>
+    <span class="pill pill-data">Synthetic data</span>
+  </div>
+  <div class="right">
+    <span class="status-dot" id="statusDot"></span>
+    <span class="status-text" id="status">Checking system...</span>
+  </div>
+</div>
+<div class="quickstart">
+  <span class="qs-label">Try it</span>
+  <button class="qs-btn" data-go="undeployed-0"><span class="num">1</span>Fix never shipped</button>
+  <button class="qs-btn" data-go="conflict-0"><span class="num">2</span>Records disagree</button>
+  <button class="qs-btn" data-go="late-0"><span class="num">3</span>Late-arriving record</button>
+  <button class="qs-btn" data-go="injected-0"><span class="num">4</span>Hostile commit message</button>
+  <button class="compose-btn" id="composeBtn">+ Build your own</button>
+  <span class="qs-help"><button id="helpBtn">How does this work?</button></span>
+</div>
 <div class="layout">
-  <nav id="list" aria-label="Incidents"></nav>
-  <main id="main"><p class="sub">Pick an incident on the left.</p></main>
+  <nav class="sidebar" id="list" aria-label="Incidents"></nav>
+  <main id="main"><p style="padding:40px;text-align:center;color:var(--secondary);font-size:16px">Pick an incident from the left to get started.</p></main>
   <aside id="side" aria-live="polite"></aside>
 </div>
+
+<!-- Help overlay -->
+<div id="helpOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:90;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--surface);border-radius:12px;max-width:560px;width:100%;padding:28px 32px;box-shadow:var(--shadow-lg)">
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:12px">How Metis works</h2>
+    <p style="color:var(--secondary);line-height:1.7;margin-bottom:12px">When something breaks in production, evidence comes from many places: source control, build systems, deployment logs, and runtime probes. Some arrive late. Some contradict each other.</p>
+    <p style="color:var(--secondary);line-height:1.7;margin-bottom:12px"><b style="color:var(--ink)">Metis figures out what was actually running</b> at the time of the incident by cross-checking all these records. It flags contradictions and gaps, then hands a clean picture to Gemini AI.</p>
+    <p style="color:var(--secondary);line-height:1.7;margin-bottom:16px"><b style="color:var(--ink)">The key insight:</b> a recovery system that doesn't know what's actually running will suggest invalid fixes 40-60% of the time (per the R2Act research paper). Metis brings that to 0%.</p>
+    <div style="display:flex;gap:12px;margin-top:8px">
+      <div style="flex:1;background:var(--bg);padding:12px;border-radius:8px;text-align:center">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--secondary)">Left panel</div>
+        <div style="font-size:13px;margin-top:4px">All incidents</div>
+      </div>
+      <div style="flex:1;background:var(--bg);padding:12px;border-radius:8px;text-align:center">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--secondary)">Middle</div>
+        <div style="font-size:13px;margin-top:4px">Raw facts, in order</div>
+      </div>
+      <div style="flex:1;background:var(--bg);padding:12px;border-radius:8px;text-align:center">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--secondary)">Right panel</div>
+        <div style="font-size:13px;margin-top:4px">Analysis &amp; results</div>
+      </div>
+    </div>
+    <button onclick="this.closest('div[id]').style.display='none'" style="margin-top:16px;padding:8px 20px;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;width:100%">Got it</button>
+  </div>
+</div>
+
+<!-- Composer modal -->
 <div id="modal" role="dialog" aria-labelledby="mtitle" aria-modal="true">
   <div class="mbox">
     <div class="mhead"><h2 id="mtitle">Build your own incident</h2>
-      <span class="small">Compose evidence, then run the full pipeline live. Nothing is executed.</span>
-      <button class="close" aria-label="Close">×</button></div>
+      <span class="desc">Create a scenario, then watch the full pipeline run. Nothing is executed.</span>
+      <button class="close" aria-label="Close">&times;</button></div>
     <div class="mbody">
-      <div class="preset">Start from a preset:
-        <button data-preset="undeployed">Undeployed fix</button> · 
-        <button data-preset="conflict">Deploy vs runtime conflict</button> · 
-        <button data-preset="late">Late-arriving record</button> · 
-        <button data-preset="config">Config-only change</button>
+      <div class="preset-bar">
+        <span class="p-label">Start from a template:</span>
+        <button class="preset-btn" data-preset="undeployed">Fix never deployed</button>
+        <button class="preset-btn" data-preset="conflict">Conflicting records</button>
+        <button class="preset-btn" data-preset="late">Late-arriving data</button>
+        <button class="preset-btn" data-preset="config">Config change only</button>
       </div>
       <div class="mcols">
         <div>
-          <label>Symptom (one line)</label>
+          <label>What went wrong?</label>
           <input id="sympIn" value="500s from /pay: NullPointer in pricing.py" maxlength="400">
-          <label>Service</label>
+          <label>Service name</label>
           <input id="svcIn" value="payments" maxlength="64">
-          <label>Events (ordered by minutes-before-incident; latest last)</label>
+          <label>Evidence timeline (newest last)</label>
           <div class="evlist" id="evList"></div>
-          <div class="pb">
+          <div class="add-btns">
             <button data-add='{"source":"git","kind":"commit"}'>+ Commit</button>
             <button data-add='{"source":"ci","kind":"build"}'>+ Build</button>
             <button data-add='{"source":"deploy_log","kind":"deploy"}'>+ Deploy</button>
-            <button data-add='{"source":"runtime","kind":"runtime_version"}'>+ Runtime probe</button>
+            <button data-add='{"source":"runtime","kind":"runtime_version"}'>+ Runtime check</button>
             <button data-add='{"source":"k8s_audit","kind":"config_change"}'>+ Config</button>
             <button data-add='{"source":"orchestrator","kind":"rollout"}'>+ Rollout</button>
           </div>
-          <label><input type="checkbox" id="askGem" style="width:auto;vertical-align:-2px"> Also ask Gemini (uses a live call)</label>
+          <label style="margin-top:12px"><input type="checkbox" id="askGem" style="width:auto;vertical-align:-2px"> Also ask Gemini AI (uses a live API call)</label>
         </div>
         <div>
-          <label>Live result</label>
-          <div class="results" id="composeOut"><div class="small">Build an incident on the left and click Analyze.</div></div>
+          <label>Results</label>
+          <div class="results" id="composeOut"><div class="small">Add evidence on the left and click Analyze to see results.</div></div>
         </div>
       </div>
     </div>
     <div class="mfoot">
       <button class="go" id="goBtn">Analyze</button>
-      <span class="small">Full pipeline runs server-side: reconciliation, cross-check, recovery recommendation, (optional) Gemini.</span>
+      <span class="small">Runs the full pipeline: cross-check records, figure out what was running, recommend a recovery action, and optionally ask Gemini.</span>
     </div>
   </div>
 </div>
@@ -238,15 +333,28 @@ aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
 "use strict";
 const $ = (id) => document.getElementById(id);
 function el(tag, cls, text){const e=document.createElement(tag); if(cls)e.className=cls; if(text!==undefined)e.textContent=text; return e;}
-const LABEL = {undeployed_fix:"A fix was committed but never shipped", late_deploy_event:"Deploy record arrived late",
-  conflict_unresolvable:"Deploy log and runtime disagree", conflict_resolvable:"Disagreement settled by a failed rollout",
-  config_without_deploy:"Config changed with no deploy", insufficient_evidence:"Not enough evidence",
-  unrelated_recent_change:"Recent change is unrelated", injected_commit_message:"Commit message tries to hijack the AI",
-  unmerged_branch:"Newest commit is on an unmerged branch", merge_commit_live:"Change ships through a merge commit",
-  cherry_pick_live:"Hotfix ships as a cherry-pick", revert_unknown:"A live revert: net effect not modelled",
-  rollback_older_after_newer:"Older artifact redeployed (rollback)", partial_rollout:"Partial rollout: two versions may serve",
-  late_record_no_probe:"Late deploy record, nothing else shows what is live", delimiter_injection:"Commit message forges evidence delimiters"};
-const MODE = {raw:"Gemini on the raw evidence", reconciled:"Gemini with reconciliation + validator"};
+
+// Friendly labels for each scenario type
+const LABEL = {
+  undeployed_fix:"A fix was written but never shipped",
+  late_deploy_event:"Deploy record showed up late",
+  conflict_unresolvable:"Deploy log and runtime disagree",
+  conflict_resolvable:"Disagreement resolved by failed rollout",
+  config_without_deploy:"Config changed, no new deploy",
+  insufficient_evidence:"Not enough info to decide",
+  unrelated_recent_change:"Recent change isn't related",
+  injected_commit_message:"Commit message tries to trick the AI",
+  unmerged_branch:"Commit is on an unmerged branch",
+  merge_commit_live:"Change ships via merge commit",
+  cherry_pick_live:"Hotfix ships as cherry-pick",
+  revert_unknown:"A revert happened, net effect unclear",
+  rollback_older_after_newer:"Older version redeployed (rollback)",
+  partial_rollout:"Partial rollout: two versions may be running",
+  late_record_no_probe:"Late deploy record, no runtime check",
+  delimiter_injection:"Commit message forges data boundaries"
+};
+
+const MODE = {raw:"Gemini on raw evidence", reconciled:"Gemini + state reconstruction"};
 let current=null, incidentTime=null;
 
 async function api(path, opts){
@@ -255,79 +363,101 @@ async function api(path, opts){
   if(!r.ok) throw new Error((body&&body.detail)||("HTTP "+r.status));
   return body;
 }
-function rel(iso){const m=Math.round((incidentTime-new Date(iso))/60000); return m>=0?("T\u2212"+m+"m"):("T+"+(-m)+"m");}
+function rel(iso){const m=Math.round((incidentTime-new Date(iso))/60000); return m>=0?("T−"+m+"m"):("T+"+(-m)+"m");}
 
 function summarise(e){
   const d=e.data||{};
   switch(e.kind){
-    case "commit": return [d.sha+" touches "+(d.touches||[]).join(", "), d.message];
-    case "build": return ["Build of "+d.sha, "artifact "+d.digest];
-    case "deploy": return ["Deploy "+d.status, "artifact "+d.digest];
-    case "rollout": return ["Orchestrator reports rollout "+d.status, "deploy "+d.deploy_id];
-    case "runtime_version": return ["Runtime probe sees artifact", d.digest];
-    case "config_change": return ["Config "+d.key+": "+d.old+" \u2192 "+d.new, d.deploy_id?("deploy "+d.deploy_id):"no deploy record"];
+    case "commit": return [d.sha+" changes "+(d.touches||[]).join(", "), d.message];
+    case "build": return ["Build of "+d.sha, "artifact: "+d.digest];
+    case "deploy": return ["Deploy "+d.status, "artifact: "+d.digest];
+    case "rollout": return ["Rollout "+d.status, "deploy "+d.deploy_id];
+    case "runtime_version": return ["Runtime sees artifact", d.digest];
+    case "config_change": return ["Config: "+d.key+" changed "+d.old+" → "+d.new, d.deploy_id?("via deploy "+d.deploy_id):"standalone change"];
     default: return [e.kind, JSON.stringify(d)];
   }
 }
 
 async function init(){
   try{const h=await api("/api/health");
-    $("status").textContent="Synthetic incidents only. Read-only: nothing here changes any system. "+
-      (h.llm_configured?"Live Gemini is available (capped).":"Live Gemini is off; recorded results and the deterministic engine still work.");
-  }catch(e){}
+    $("status").textContent=h.llm_configured?"Gemini AI available":"Gemini offline — recorded results still work";
+    $("statusDot").style.background=h.llm_configured?"var(--green)":"var(--orange)";
+  }catch(e){$("status").textContent="Could not reach API"; $("statusDot").style.background="var(--red)";}
+
   const list=await api("/api/incidents"), nav=$("list");
-  const GROUP={undeployed_fix:"Core cases",late_deploy_event:"Core cases",conflict_unresolvable:"Core cases",conflict_resolvable:"Core cases",
-    config_without_deploy:"Core cases",insufficient_evidence:"Core cases",unrelated_recent_change:"Core cases",injected_commit_message:"Adversarial"};
+  const GROUP={undeployed_fix:"Core scenarios",late_deploy_event:"Core scenarios",conflict_unresolvable:"Core scenarios",conflict_resolvable:"Core scenarios",
+    config_without_deploy:"Core scenarios",insufficient_evidence:"Core scenarios",unrelated_recent_change:"Core scenarios",injected_commit_message:"Adversarial scenarios"};
   let lastG=null;
-  list.forEach(i=>{const g=GROUP[i.type]||"Git history and rollouts"; if(g!==lastG){nav.append(el("div","grp",g)); lastG=g;}
-    const b=el("button"); b.dataset.id=i.id;
-    b.append(el("div","t",LABEL[i.type]||i.type), el("div","s",i.id+": "+i.symptom));
-    b.addEventListener("click",()=>select(i.id)); nav.append(b);});
-  document.querySelectorAll("#demo button[data-go]").forEach(b=>{ if(!list.some(i=>i.id===b.dataset.go)) b.remove(); else b.addEventListener("click",()=>select(b.dataset.go));});
-  document.addEventListener("keydown",e=>{ if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
-    if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return; const k=list.findIndex(i=>i.id===current); if(k<0)return;
-    const n=list[Math.max(0,Math.min(list.length-1,k+(e.key==="ArrowDown"?1:-1)))]; if(n&&n.id!==current){e.preventDefault(); select(n.id);}});
+  list.forEach(i=>{
+    const g=GROUP[i.type]||"Advanced scenarios";
+    if(g!==lastG){nav.append(el("div","group-label",g)); lastG=g;}
+    const b=el("button","inc-btn"); b.dataset.id=i.id;
+    b.append(el("div","inc-title",LABEL[i.type]||i.type), el("div","inc-sub",i.symptom));
+    b.addEventListener("click",()=>select(i.id)); nav.append(b);
+  });
+
+  document.querySelectorAll(".quickstart button[data-go]").forEach(b=>{
+    if(!list.some(i=>i.id===b.dataset.go)) b.remove();
+    else b.addEventListener("click",()=>select(b.dataset.go));
+  });
+  document.addEventListener("keydown",e=>{
+    if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+    if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return;
+    const k=list.findIndex(i=>i.id===current); if(k<0)return;
+    const n=list[Math.max(0,Math.min(list.length-1,k+(e.key==="ArrowDown"?1:-1)))];
+    if(n&&n.id!==current){e.preventDefault(); select(n.id);}
+  });
   if(list.length) select(list[0].id);
 }
 
 async function select(id){
   current=id;
-  document.querySelectorAll("#list button").forEach(b=>b.setAttribute("aria-current", b.dataset.id===id));
+  document.querySelectorAll("#list .inc-btn").forEach(b=>b.setAttribute("aria-current", b.dataset.id===id));
   const [inc, rec, recd] = await Promise.all([api("/api/incidents/"+id), api("/api/incidents/"+id+"/reconciliation"),
     api("/api/incidents/"+id+"/recorded").catch(()=>({rows:[]}))]);
   incidentTime=new Date(inc.incident_time);
-  const cur=document.querySelector('#list button[aria-current="true"]'); if(cur) cur.scrollIntoView({block:"nearest"});
-  renderLedger(inc); renderSide(inc, rec, recd);
+  const cur=document.querySelector('.inc-btn[aria-current="true"]'); if(cur) cur.scrollIntoView({block:"nearest"});
+  renderTimeline(inc); renderSide(inc, rec, recd);
   $("main").scrollTo?.(0,0); window.scrollTo({top:0});
 }
 
-function renderLedger(inc){
+function renderTimeline(inc){
   const m=$("main"); m.replaceChildren();
-  m.append(el("h2","symptom",inc.symptom));
-  m.append(el("div","sub","Incident "+inc.id+" at "+incidentTime.toUTCString()+". Observed facts, ordered by when each thing happened. Hatched rows were recorded after the incident: they describe the past, but an investigator at that moment could not have seen them."));
-  const ol=el("ol","ledger");
+  const hdr=el("div","incident-header");
+  hdr.append(el("h2",null,inc.symptom));
+  hdr.append(el("div","incident-meta","Incident "+inc.id+" — "+incidentTime.toUTCString()));
+  m.append(hdr);
+
+  const tl=el("div","timeline");
   inc.evidence.forEach(e=>{
-    const li=el("li","ev s-"+e.source+(e.visible_at_incident?"":" late")); li.dataset.id=e.id;
+    const item=el("div","tl-item src-"+e.source+(e.visible_at_incident?"":" late")); item.dataset.id=e.id;
+    const card=el("div","tl-card");
     const [what,detail]=summarise(e);
-    li.append(el("span","tm",rel(e.event_time)), el("div","what",what), el("div","detail",detail||""),
-      el("div","src",e.source));
-    li.firstChild.after(el("span","kind",e.kind.replace("_"," ")));
-    if(!e.visible_at_incident) li.append(el("div","lt","Ingested "+rel(e.ingest_time)+": invisible to the investigation"));
-    li.append(el("div","id",e.id)); ol.append(li);
+    card.append(el("div","tl-time",rel(e.event_time)));
+    card.append(el("div","tl-what",what));
+    if(detail) card.append(el("div","tl-detail",detail));
+    card.append(el("span","tl-source",e.source.replace(/_/g," ")));
+    if(!e.visible_at_incident) card.append(el("div","tl-late","Arrived late ("+rel(e.ingest_time)+") — investigator couldn’t see this"));
+    card.append(el("div","tl-id",e.id));
+    item.append(card); tl.append(item);
   });
-  m.append(ol, el("div","incident-mark","Incident: "+inc.symptom));
-  // --- Time travel ---
-  const tt=el("div","tt"); tt.append(el("span","small","What would you have known at:"));
-  [[-30,"T\u221230m"],[0,"T (incident)"],[30,"T+30m"]].forEach(([off,lbl])=>{
-    const b=el("button",null,lbl); if(off===0) b.setAttribute("aria-current","true");
+  m.append(tl);
+  m.append(el("div","tl-incident-mark","⚠ Incident: "+inc.symptom));
+
+  // Time travel
+  const tt=el("div","time-travel");
+  tt.append(el("span","label","See what was known at:"));
+  [[-30,"30 min before"],[0,"Incident time"],[30,"30 min after"]].forEach(([off,lbl])=>{
+    const b=el("button","tt-btn",lbl); if(off===0) b.setAttribute("aria-current","true");
     b.addEventListener("click",async()=>{
       tt.querySelectorAll("button").forEach(x=>x.removeAttribute("aria-current")); b.setAttribute("aria-current","true");
       const as_of=new Date(incidentTime.getTime()+off*60000).toISOString();
       const rec=await api(`/api/incidents/${inc.id}/reconciliation?as_of=${encodeURIComponent(as_of)}`).catch(()=>null);
-      if(!rec) return; const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0};
+      if(!rec) return;
+      const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0};
       rec.changes.forEach(c=>{if(c.status in cnt) cnt[c.status]++;});
-      const msg=`At ${lbl}: ${cnt.DEPLOYED} DEPLOYED, ${cnt.NOT_DEPLOYED} NOT DEPLOYED, ${cnt.UNKNOWN} UNKNOWN. ${rec.late_records.length?("Later-arriving records: "+rec.late_records.length):"No late records at this time."}`;
-      let note=document.getElementById("tt-note"); if(!note){note=el("div","small"); note.id="tt-note"; tt.append(note);} note.textContent=msg;
+      let note=document.getElementById("tt-note"); if(!note){note=el("div","small"); note.id="tt-note"; tt.append(note);}
+      note.textContent=`At ${lbl}: ${cnt.DEPLOYED} running, ${cnt.NOT_DEPLOYED} not running, ${cnt.UNKNOWN} unclear. ${rec.late_records.length?("Records that arrived later: "+rec.late_records.length):"No late records."}`;
     });
     tt.append(b);
   });
@@ -336,194 +466,240 @@ function renderLedger(inc){
 }
 
 function citeBtn(id){const b=el("button","cite",id); b.addEventListener("click",()=>{
-  const t=document.querySelector('.ev[data-id="'+CSS.escape(id)+'"]'); if(!t){return;}
+  const t=document.querySelector('.tl-item[data-id="'+CSS.escape(id)+'"]'); if(!t){return;}
   t.scrollIntoView({block:"center",behavior:"smooth"}); t.classList.add("flash"); setTimeout(()=>t.classList.remove("flash"),2200);}); return b;}
 
 function listCard(cls,title,items,mk){ if(!items||!items.length) return null;
-  const c=el("div","card "+cls); c.append(el("div","k",title)); items.forEach(i=>{const d=el("div"); mk(d,i); c.append(d);}); return c;}
+  const c=el("div","info-card "+cls); c.append(el("div","card-label",title)); items.forEach(i=>{const d=el("div"); mk(d,i); c.append(d);}); return c;}
+
+const chipClass={DEPLOYED:"chip chip-live",NOT_DEPLOYED:"chip chip-notlive",UNKNOWN:"chip chip-unclear",APPLIED:"chip chip-applied"};
+const chipLabel={DEPLOYED:"Running",NOT_DEPLOYED:"Not running",UNKNOWN:"Unclear",APPLIED:"Applied"};
 
 function renderSide(inc, rec, recd){
   const s=$("side"); s.replaceChildren();
-  s.append(el("h2",null,"Investigation"));
-  const btns=el("div","btns");
-  [["deterministic","Reconcile only","No AI, instant, free",false],["raw","Ask Gemini: raw evidence","Model sees the records, no reconstruction",false],["reconciled","Ask Gemini: reconciled","Model sees reconstructed state, answer is checked",true]].forEach(([mode,label,sub,prim])=>{
-    const b=el("button",prim?"primary":null,label); b.append(el("small",null,sub)); b.addEventListener("click",()=>run(mode,btns,b)); btns.append(b);});
-  s.append(btns, el("div","small","Gemini calls are capped per day to protect a free quota. Recorded results below always work."));
+
+  // What to do section
+  const actSec=el("div","panel-section");
+  actSec.append(el("div","panel-title","Investigate this incident"));
+  actSec.append(el("div","panel-subtitle","Choose how to analyze the evidence"));
+  const btns=el("div","actions");
+  [["deterministic","Quick check","Cross-check records, no AI needed",false],
+   ["raw","Ask Gemini (raw)","AI sees the raw records, no reconstruction",false],
+   ["reconciled","Ask Gemini (full pipeline)","AI sees reconstructed state, answer is verified",true]
+  ].forEach(([mode,label,sub,prim])=>{
+    const b=el("button","action-btn"+(prim?" primary":""));
+    b.append(el("div","action-name",label));
+    b.append(el("div","action-desc",sub));
+    b.addEventListener("click",()=>run(mode,btns,b)); btns.append(b);
+  });
+  actSec.append(btns);
+  actSec.append(el("div","small","Gemini calls are capped daily. Recorded results always available below."));
+  s.append(actSec);
   s.append(el("div",null)); s.lastChild.id="result";
 
+  // What was running
+  const stateSec=el("div","panel-section");
   const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0}; rec.changes.forEach(c=>{if(c.status in cnt)cnt[c.status]++;});
-  const hd=rec.contradictions.length?"Records disagree: some changes cannot be placed":
-    (rec.changes.length&&cnt.UNKNOWN===rec.changes.length?"Not enough evidence to say what was live":"What was live is established");
-  s.append(el("div","headline",hd));
-  const g=el("div","glance"); [["DEPLOYED","Live"],["NOT_DEPLOYED","Not live"],["UNKNOWN","Unknown"]].forEach(([k,l])=>{const d=el("div"); const b=el("b",null,String(cnt[k])); b.className="c-"+k; d.append(b,el("span",null,l)); g.append(d);}); s.append(g);
-  s.append(el("h3",null,"Derived: what was live (deterministic)"));
-  const live=el("div","card"); live.append(el("div","k","Live version"));
-  live.append(el("div",null,(rec.active_digests.length?rec.active_digests.join(" or "):"Cannot be established")+"  ["+rec.confidence+" confidence]"));
-  live.append(el("div","small",rec.basis));
-  live.append(el("div","small","History model: "+({dag:"commit graph with parent links",linear_assumed:"linear history ASSUMED (no parent links recorded)",unsupported:"unsupported, so every change is UNKNOWN"}[rec.history_model]||rec.history_model)));
-  live.append(el("div","small","View: what an investigator could know at the incident time."));
-  s.append(live);
-  if(rec.view_differences&&rec.view_differences.length){
-    const k=el("div","card missing"); k.append(el("div","k","Known only later (retrospective view)"));
-    rec.view_differences.forEach(d=>{const r=el("div"); r.append(citeBtn(d.change_id)); r.append(document.createTextNode(": "+d.contemporaneous.replace("_"," ")+" at the time, "+d.retrospective.replace("_"," ")+" once late records are counted"));k.append(r);});
-    k.append(el("div","small","Records that reached us after the incident: "+rec.late_records.join(", ")+". They describe the past, but nobody could use them then."));
-    s.append(k);}
-  const co=listCard("contra","Contradictory evidence",rec.contradictions,(d,c)=>{
-    d.append(el("div",null,c.type.replace(/_/g," ")+(c.deploy_log_digest?": deploy log says "+c.deploy_log_digest+", runtime says "+c.runtime_digest:"")));
-    (c.records||[]).forEach(r=>{d.append(citeBtn(r)); d.append(document.createTextNode(" "));});}); if(co)s.append(co);
-  const mi=listCard("missing","Missing evidence",rec.missing_evidence,(d,t)=>d.append(el("div",null,t))); if(mi)s.append(mi);
-  const t=el("table"); t.append(el("tr")); ["Change","Status","Why"].forEach(h=>t.lastChild.append(el("th",null,h)));
-  rec.changes.forEach(c=>{const tr=el("tr"); const a=el("td"); a.append(citeBtn(c.id)); const st=el("td"); st.append(el("span","chip c-"+c.status,c.status.replace("_"," ")));
-    tr.append(a,st,el("td","small",c.note)); t.append(tr);}); s.append(t);
-  s.append(el("div","small","NOT DEPLOYED needs positive evidence it was not live. UNKNOWN means evidence is missing, late or contradictory."));
+  const hd=rec.contradictions.length?"Records disagree — some changes can’t be placed":
+    (rec.changes.length&&cnt.UNKNOWN===rec.changes.length?"Not enough evidence to determine what was running":"System state determined");
+  stateSec.append(el("div","panel-title",hd));
+  const g=el("div","status-grid");
+  [["DEPLOYED","num-live","Running"],["NOT_DEPLOYED","num-notlive","Not running"],["UNKNOWN","num-unclear","Unclear"]].forEach(([k,nc,l])=>{
+    const d=el("div","status-box"); const b=el("b",nc,String(cnt[k])); d.append(b,el("span","lbl",l)); g.append(d);
+  });
+  stateSec.append(g);
 
-  // --- Recovery recommendation (R2Act-style validity, no execution) ---
-  const rc = el("div","recov"); rc.append(el("h3",null,"Recovery recommendation (read-only; nothing is executed)"));
-  const rr = el("div","row");
-  const nb = el("div","c"); nb.append(el("span","lbl","Naive always-rollback"));
-  const nbA = el("div","act","\u2026"); nb.append(nbA); const nbW = el("div","why",""); nb.append(nbW); rr.append(nb);
-  const mb = el("div","c"); mb.append(el("span","lbl","Metis (uses reconstructed state)"));
-  const mbA = el("div","act","\u2026"); mb.append(mbA); const mbW = el("div","why",""); mb.append(mbW); rr.append(mb);
-  rc.append(rr); rc.append(el("div","foot","Validity = the action is defined for the reconstructed state. It does not mean the action will fix the incident."));
+  // Live version
+  const lv=el("div","info-card highlight");
+  lv.append(el("div","card-label","What was running at incident time"));
+  lv.append(el("div","card-body",(rec.active_digests.length?rec.active_digests.join(" or "):"Can’t determine")+"  ("+rec.confidence+" confidence)"));
+  lv.append(el("div","small",rec.basis));
+  const historyText={dag:"Based on commit graph with parent links",linear_assumed:"Linear history assumed (no parent links recorded)",unsupported:"History structure not supported — every change marked unclear"};
+  lv.append(el("div","small",historyText[rec.history_model]||rec.history_model));
+  stateSec.append(lv);
+
+  if(rec.view_differences&&rec.view_differences.length){
+    const k=el("div","info-card warning"); k.append(el("div","card-label","Found out later"));
+    rec.view_differences.forEach(d=>{const r=el("div"); r.append(citeBtn(d.change_id)); r.append(document.createTextNode(": looked "+d.contemporaneous.replace(/_/g," ")+" at the time, turned out to be "+d.retrospective.replace(/_/g," ")));k.append(r);});
+    k.append(el("div","small","These records reached us after the incident. They describe the past, but nobody could use them then."));
+    stateSec.append(k);
+  }
+
+  const co=listCard("danger","Contradictions found",rec.contradictions,(d,c)=>{
+    d.append(el("div",null,c.type.replace(/_/g," ")+(c.deploy_log_digest?": deploy log says "+c.deploy_log_digest+", runtime says "+c.runtime_digest:"")));
+    (c.records||[]).forEach(r=>{d.append(citeBtn(r)); d.append(document.createTextNode(" "));});
+  }); if(co) stateSec.append(co);
+
+  const mi=listCard("warning","Evidence gaps",rec.missing_evidence,(d,t)=>d.append(el("div",null,t))); if(mi) stateSec.append(mi);
+
+  const t=el("table"); const tHead=el("tr");
+  ["Change","Status","Reason"].forEach(h=>tHead.append(el("th",null,h))); t.append(tHead);
+  rec.changes.forEach(c=>{
+    const tr=el("tr"); const a=el("td"); a.append(citeBtn(c.id));
+    const st=el("td"); st.append(el("span",chipClass[c.status]||"chip",chipLabel[c.status]||c.status));
+    tr.append(a,st,el("td","small",c.note)); t.append(tr);
+  });
+  stateSec.append(t);
+  s.append(stateSec);
+
+  // Recovery
+  const rc=el("div","recovery");
+  rc.append(el("div","rec-head","What should we do? (advisory, never executed)"));
+  const rr=el("div","rec-row");
+  const nb=el("div","rec-col"); nb.append(el("div","rec-label","Without Metis (always rollback)"));
+  const nbA=el("div","rec-action","…"); nb.append(nbA); const nbW=el("div","rec-why"); nb.append(nbW); rr.append(nb);
+  const mb=el("div","rec-col"); mb.append(el("div","rec-label","With Metis (state-aware)"));
+  const mbA=el("div","rec-action","…"); mb.append(mbA); const mbW=el("div","rec-why"); mb.append(mbW); rr.append(mb);
+  rc.append(rr);
+  rc.append(el("div","rec-foot","Valid = this action makes sense given what’s actually running. It doesn’t guarantee a fix."));
   s.append(rc);
   api("/api/incidents/"+inc.id+"/recovery").then(r=>{
-    const draw=(hostA,hostW,x)=>{ hostA.textContent=x.action.replace(/_/g," ");
-      const p=el("span","pill "+(x.valid?"ok":"bad"),x.valid?"VALID":"INVALID"); hostA.append(p);
-      hostW.textContent=x.why;};
+    const draw=(hostA,hostW,x)=>{
+      hostA.textContent=x.action.replace(/_/g," ");
+      const p=el("span","validity-pill "+(x.valid?"pill-valid":"pill-invalid"),x.valid?"VALID":"INVALID"); hostA.append(p);
+      hostW.textContent=x.why;
+    };
     draw(nbA,nbW,r.naive); draw(mbA,mbW,r.metis);
   }).catch(()=>{});
 
   s.append(recordedForIncident(recd));
-  const tb=el("details"); tb.append(el("summary",null,"Reveal ground truth (never shown to any investigator)"));
-  const body=el("div","card"); tb.append(body);
+  const tb=el("details"); tb.append(el("summary",null,"Show the answer (hidden from all investigators)"));
+  const body=el("div","info-card"); tb.append(body);
   tb.addEventListener("toggle",async()=>{ if(tb.open && !body.textContent){const g=await api("/api/incidents/"+inc.id+"/truth");
-    body.append(el("div",null,g.answerable?"Answerable. True cause:":"Not answerable from the evidence: the correct output is to abstain."));
+    body.append(el("div",null,g.answerable?"This is answerable. True cause:":"Not answerable from the evidence — the correct response is to say \"I don’t know.\""));
     if(g.cause_id) body.append(citeBtn(g.cause_id));}});
   s.append(tb);
 }
 
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
-function stage(trace,title,who,state,body){
-  const d=el("div","stage "+state); const t=el("div","st",title); if(who){t.append(el("span","who "+(who==="AI"?"ai":"code"),who==="AI"?"Gemini":"Deterministic code"));}
-  d.append(t); if(body) d.append(body); trace.append(d); return d;}
-function setState(d,state,body){ d.className="stage "+state; if(body){ d.querySelector(".sd")?.remove(); d.append(body);} }
-function line(html){ const d=el("div","sd"); html.forEach(x=>{ if(typeof x==="string") d.append(document.createTextNode(x)); else d.append(x);}); return d; }
+function addStep(trace,title,who,state,body){
+  const d=el("div","step "+state);
+  const t=el("div","step-title",title);
+  if(who){t.append(el("span","step-badge "+(who==="AI"?"ai":"code"),who==="AI"?"Gemini":"Code"));}
+  d.append(t); if(body) d.append(body); trace.append(d); return d;
+}
+function setStepState(d,state,body){ d.className="step "+state; if(body){ d.querySelector(".step-detail")?.remove(); d.append(body);}}
+function detail(parts){const d=el("div","step-detail"); parts.forEach(x=>{if(typeof x==="string") d.append(document.createTextNode(x)); else d.append(x);}); return d;}
 function bold(t){return el("b",null,t);}
 
 async function run(mode, btns, btn){
   const out=$("result"); out.replaceChildren();
   const trace=el("div","trace"); const res=el("div");
-  out.append(el("h3",null,"Behind the scenes"), trace, res);
+  out.append(el("div","panel-title","What’s happening behind the scenes"), trace, res);
   btns.querySelectorAll("button").forEach(b=>b.disabled=true);
   const pace=window.matchMedia("(prefers-reduced-motion: reduce)").matches?0:380;
   try{
     const needLLM = mode!=="deterministic";
     const p = await api("/api/incidents/"+current+"/pipeline?mode="+(needLLM?mode:"reconciled"));
-    const callP = needLLM ? api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})}).catch(e=>({__err:e.message}))
-                          : api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})}).catch(e=>({__err:e.message}));
+    const callP = api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})}).catch(e=>({__err:e.message}));
 
-    stage(trace,"1. Load the evidence ledger","code","done",line([bold(p.ledger.total+" records")," from ",bold(p.ledger.sources.join(", ")),". Each keeps when it happened and when we received it."])); await sleep(pace);
+    addStep(trace,"Collect all evidence","code","done",detail([bold(p.ledger.total+" records")," from ",bold(p.ledger.sources.join(", "))])); await sleep(pace);
     const g=p.time_gate; const ex=g.excluded_late_or_future;
-    stage(trace,"2. Cut the ledger at the incident time","code",ex.length?"warn":"done",
-      line([bold(g.visible_contemporaneous+" of "+p.ledger.total)," records were known at ",new Date(g.as_of).toUTCString().slice(17,25)+" UTC. ",
-        ex.length?("Held back as not yet received: "+ex.join(", ")+"."):"Nothing arrived late."])); await sleep(pace);
+    addStep(trace,"Filter to what was known at incident time","code",ex.length?"warn":"done",
+      detail([bold(g.visible_contemporaneous+" of "+p.ledger.total)," records were available. ",
+        ex.length?("Held back "+ex.length+" that arrived late."):"Nothing was late."])); await sleep(pace);
     const r=p.reconstruction; const cnt={}; r.changes.forEach(c=>cnt[c.status]=(cnt[c.status]||0)+1);
-    const d3=stage(trace,"3. Rebuild what was live at that moment","code","done",
-      line([ "Using ",bold(({dag:"the commit graph",linear_assumed:"an assumed linear history",unsupported:"no usable history"})[r.history_model]||r.history_model),": ",
-        Object.entries(cnt).map(([k,v])=>v+" "+k.replace("_"," ").toLowerCase()).join(", ")||"no changes","."]));
-    const ul=el("div","sd"); r.changes.forEach(c=>{const row=el("div"); row.append(citeBtn(c.id)); row.append(document.createTextNode("  "));
-      row.append(el("span","chip c-"+c.status,c.status.replace("_"," "))); ul.append(row);}); d3.append(ul); await sleep(pace);
+    const d3=addStep(trace,"Figure out what was actually running","code","done",
+      detail(["Using ",bold(({dag:"commit graph",linear_assumed:"assumed linear history",unsupported:"no usable history"})[r.history_model]||r.history_model),": ",
+        Object.entries(cnt).map(([k,v])=>v+" "+(chipLabel[k]||k).toLowerCase()).join(", ")||"no changes","."]));
+    const ul=el("div","step-detail"); r.changes.forEach(c=>{const row=el("div"); row.append(citeBtn(c.id)); row.append(document.createTextNode("  "));
+      row.append(el("span",chipClass[c.status]||"chip",chipLabel[c.status]||c.status)); ul.append(row);}); d3.append(ul); await sleep(pace);
     const x=p.cross_check; const bad=x.contradictions.length||x.missing_evidence.length;
-    stage(trace,"4. Cross-check sources against each other","code",bad?"warn":"done",
-      line([x.contradictions.length?bold(x.contradictions.length+" contradiction"+(x.contradictions.length>1?"s":"")+" found"):"No contradictions. ",
-        x.contradictions.length?(" ("+x.contradictions.map(c=>c.type.replace(/_/g," ")).join("; ")+"). Affected changes become UNKNOWN rather than guessed. "):"",
-        x.missing_evidence.length?("Missing: "+x.missing_evidence[0]):"" ])); await sleep(pace);
+    addStep(trace,"Cross-check different sources","code",bad?"warn":"done",
+      detail([x.contradictions.length?bold(x.contradictions.length+" contradiction"+(x.contradictions.length>1?"s":"")):"No contradictions. ",
+        x.contradictions.length?(" — affected changes become “unclear” instead of being guessed. "):"",
+        x.missing_evidence.length?("Missing: "+x.missing_evidence[0]):""])); await sleep(pace);
     if(x.differences_when_late_records_counted.length){
-      stage(trace,"   Then compare with the later, fuller picture","code","warn",
-        line([bold(x.differences_when_late_records_counted.length+" change(s)")," look different once late records are counted, e.g. ",x.differences_when_late_records_counted[0].change_id.split(":").pop()," is ",
-          x.differences_when_late_records_counted[0].contemporaneous.replace("_"," ")," at the time but ",x.differences_when_late_records_counted[0].retrospective.replace("_"," ")," later. The investigator may only use the first."])); await sleep(pace);}
+      addStep(trace,"Compare with records that arrived later","code","warn",
+        detail([bold(x.differences_when_late_records_counted.length+" change(s)")," look different once late data is counted. E.g. ",
+          x.differences_when_late_records_counted[0].change_id.split(":").pop()," was “",
+          chipLabel[x.differences_when_late_records_counted[0].contemporaneous]||x.differences_when_late_records_counted[0].contemporaneous,"” at the time but “",
+          chipLabel[x.differences_when_late_records_counted[0].retrospective]||x.differences_when_late_records_counted[0].retrospective,"” later."])); await sleep(pace);}
 
     if(!needLLM){
-      stage(trace,"5. Decide","code","done",line(["The deterministic engine answers from the statuses above. No model is involved."]));
+      addStep(trace,"Decide based on evidence alone","code","done",detail(["No AI used. The answer comes directly from the status table."]));
       const r2=await callP; if(r2.__err) throw new Error(r2.__err);
       res.replaceChildren(renderResult(mode,r2)); return;
     }
-    const pr=p.prompt; const d5=stage(trace,"5. Build the prompt Gemini receives","code","done",
-      line(["Mode: ",bold(mode==="raw"?"raw evidence only":"evidence + the reconstruction above"),". ",bold(pr.user_chars+" characters")," of evidence, passed as escaped JSON so commit text cannot forge structure. The model never sees ground truth."]));
-    const det=el("details"); det.append(el("summary",null,"Show the exact prompt")); det.append(el("pre",null,"SYSTEM:\n"+pr.system+"\n\nUSER:\n"+pr.user+(pr.user_truncated?"\n[truncated for display]":""))); d5.append(det); await sleep(pace);
-    const d6=stage(trace,"6. Gemini reasons and must cite record IDs","AI","run",line(["Calling the model\u2026 it may abstain."]));
+    const pr=p.prompt; const d5=addStep(trace,"Build the prompt for Gemini","code","done",
+      detail(["Mode: ",bold(mode==="raw"?"raw evidence":"evidence + reconstruction"),". ",bold(Math.round(pr.user_chars/1000)+"K characters")," of evidence as escaped JSON (commit text can’t forge structure). Ground truth is never shown."]));
+    const det=el("details"); det.append(el("summary",null,"View the exact prompt")); det.append(el("pre",null,"SYSTEM:\n"+pr.system+"\n\nUSER:\n"+pr.user+(pr.user_truncated?"\n[truncated]":""))); d5.append(det); await sleep(pace);
+    const d6=addStep(trace,"Gemini analyzes and must cite record IDs","AI","running",detail(["Calling Gemini…"]));
     const r2=await callP;
-    if(r2.__err){ setState(d6,"bad",line(["Call failed: "+r2.__err])); return; }
-    if(r2.error){ setState(d6,"bad",line([r2.error])); res.replaceChildren(renderResult(mode,r2)); return; }
-    setState(d6,"done",line(["Returned in ",bold((r2.latency_s||0).toFixed(1)+"s"),", "+(r2.prompt_tokens||0)+" in / "+(r2.output_tokens||0)+" out tokens"+(r2.cached?" (served from cache, not a fresh call)":"")+"."]));
+    if(r2.__err){ setStepState(d6,"bad",detail(["Call failed: "+r2.__err])); return; }
+    if(r2.error){ setStepState(d6,"bad",detail([r2.error])); res.replaceChildren(renderResult(mode,r2)); return; }
+    setStepState(d6,"done",detail(["Responded in ",bold((r2.latency_s||0).toFixed(1)+"s"),", "+(r2.prompt_tokens||0)+" in / "+(r2.output_tokens||0)+" out tokens"+(r2.cached?" (cached)":"")]));
     await sleep(pace);
     const fl=(r2.flags||[]), wa=(r2.warnings||[]);
-    stage(trace,"7. Admissibility checks on the answer","code",fl.length?"bad":(wa.length?"warn":"done"),
-      line([fl.length?bold("Rejected: "+fl.map(f=>f.replace(/_/g," ")).join(", ")+". "):"Citations exist, are time-valid and fit the rebuilt state. ",wa.length?("Warnings: "+wa.map(w=>w.replace(/_/g," ")).join(", ")+". "):"","This does not prove the cause."])); await sleep(pace);
-    stage(trace,"8. Report","code",r2.abstained?"warn":"done",line([r2.abstained?bold("Abstained"):bold("Probable cause: "+r2.cause_id)]));
+    addStep(trace,"Verify the answer makes sense","code",fl.length?"bad":(wa.length?"warn":"done"),
+      detail([fl.length?bold("Rejected: "+fl.map(f=>f.replace(/_/g," ")).join(", ")+". "):"Citations check out and match the reconstructed state. ",
+        wa.length?("Note: "+wa.map(w=>w.replace(/_/g," ")).join(", ")+". "):""])); await sleep(pace);
+    addStep(trace,"Final answer","code",r2.abstained?"warn":"done",detail([r2.abstained?bold("Not enough evidence to decide"):bold("Probable cause: "+r2.cause_id)]));
     res.replaceChildren(renderResult(mode,r2));
-  }catch(e){ res.replaceChildren(el("div","card contra err","Could not run: "+e.message)); }
+  }catch(e){ res.replaceChildren(el("div","info-card danger err","Something went wrong: "+e.message)); }
   finally{ btns.querySelectorAll("button").forEach(b=>b.disabled=false); }
 }
 
 function renderResult(mode,r){
-  const wrap=el("div"); wrap.append(el("h3",null,"Hypothesis: "+(mode==="deterministic"?"deterministic engine":MODE[mode])));
-  if(r.error){ wrap.append(el("div","card contra err","Model call failed: "+r.error)); return wrap; }
+  const wrap=el("div");
+  if(r.error){ wrap.append(el("div","info-card danger err","Model call failed: "+r.error)); return wrap; }
   const o=r.output||{}; const abst=r.abstained;
-  const bn=el("div","banner "+(abst?"a":"v"),abst?"Abstained: insufficient evidence":"Probable cause identified");
-  bn.append(el("small",null,abst?"No cause asserted. See what evidence would settle it below.":"Cited from the ledger. Click the ID to see the record."));
-  if(r.flags&&r.flags.length){bn.className="banner x"; bn.firstChild.textContent="Answer rejected by admissibility checks";}
+  const bn=el("div","result-banner "+(abst?"notenough":(r.flags&&r.flags.length?"rejected":"found")),
+    abst?"Not enough evidence to decide":"Probable cause identified");
+  bn.append(el("span","banner-sub",abst?"The system chose not to guess. Evidence gaps listed below.":"Based on the evidence records. Click the ID to jump to it."));
+  if(r.flags&&r.flags.length){bn.className="result-banner rejected"; bn.firstChild.textContent="Answer didn’t pass verification";}
   wrap.append(bn);
-  const v=el("div","card "+(abst?"abstain":"verdict"));
-  v.append(el("div","k",abst?"Verdict: insufficient evidence, no cause asserted":"Verdict: probable cause"));
+  const v=el("div","info-card "+(abst?"warning":"highlight"));
+  v.append(el("div","card-label",abst?"Result: not enough evidence":"Result: probable cause"));
   if(!abst) v.append(citeBtn(r.cause_id));
   const why = mode==="deterministic" ? r.reason : o.reasoning; if(why) v.append(el("div",null,why));
-  if(o.confidence) v.append(el("div","small","Model confidence: "+o.confidence));
+  if(o.confidence) v.append(el("div","small","Confidence: "+o.confidence));
   wrap.append(v);
-  if(r.flags&&r.flags.length){const f=el("div","card contra"); f.append(el("div","k","Admissibility checks (citations, timing, consistency with reconstructed state; not proof of cause)")); r.flags.forEach(x=>f.append(el("div",null,x.replace(/_/g," ")))); wrap.append(f);}
-  if(r.warnings&&r.warnings.length){const wc=el("div","card missing"); wc.append(el("div","k","Causal support NOT verified"));
-    r.warnings.forEach(x=>wc.append(el("div",null,({no_lexical_link_to_symptom:"The change shares no wording with the symptom.",liveness_not_cited:"The answer cites no record showing the change was live."}[x])||x))); wc.append(el("div","small","These checks cannot show that the change caused the incident.")); wrap.append(wc);}
+  if(r.flags&&r.flags.length){const f=el("div","info-card danger"); f.append(el("div","card-label","Verification failures")); r.flags.forEach(x=>f.append(el("div",null,x.replace(/_/g," ")))); wrap.append(f);}
+  if(r.warnings&&r.warnings.length){const wc=el("div","info-card warning"); wc.append(el("div","card-label","Warnings (can’t confirm cause)"));
+    r.warnings.forEach(x=>wc.append(el("div",null,({no_lexical_link_to_symptom:"The change doesn’t share any wording with the symptom.",liveness_not_cited:"No record cited shows this change was actually running."}[x])||x))); wrap.append(wc);}
   const cites=(o.cited_evidence_ids||r.evidence_ids||[]);
-  if(cites.length){const c=el("div","card"); c.append(el("div","k","Evidence it relied on")); cites.forEach(i=>{c.append(citeBtn(i)); c.append(el("br"));}); wrap.append(c);}
-  const mi=listCard("missing","Evidence that would settle it",o.missing_evidence,(d,t)=>d.append(el("div",null,t))); if(mi)wrap.append(mi);
-  const ac=listCard("","Suggested next steps (advisory, never executed)",o.suggested_actions,(d,t)=>d.append(el("div",null,"\u2022 "+t))); if(ac)wrap.append(ac);
+  if(cites.length){const c=el("div","info-card"); c.append(el("div","card-label","Evidence used")); cites.forEach(i=>{c.append(citeBtn(i)); c.append(el("br"));}); wrap.append(c);}
+  const mie=listCard("warning","What evidence would help",o.missing_evidence,(d,t)=>d.append(el("div",null,t))); if(mie)wrap.append(mie);
+  const ac=listCard("","Suggested next steps (advisory, never executed)",o.suggested_actions,(d,t)=>d.append(el("div",null,"• "+t))); if(ac)wrap.append(ac);
   if(r.prompt_tokens) wrap.append(el("div","small",r.prompt_tokens+" prompt / "+r.output_tokens+" output tokens, "+r.latency_s.toFixed(1)+"s"+(r.cached?" (cached)":"")));
   return wrap;
 }
 
 let RESULTS=null;
 function recordedBlock(){
-  const d=el("div","recorded"); d.append(el("h3",null,"Recorded benchmark"));
+  const d=el("div","recorded"); d.append(el("div","panel-title","Recorded benchmark results"));
   const box=el("div"); d.append(box);
   (async()=>{ try{ RESULTS=RESULTS||await api("/api/results"); }catch(e){RESULTS={available:false};}
-    if(!RESULTS.available){ box.append(el("div","small","No recorded results are bundled with this deployment.")); return; }
-    box.append(el("div","small","Model "+RESULTS.model+". Synthetic, author-written scenarios; small sample; each case run twice."+(RESULTS.partial?" PARTIAL RUN.":"")));
+    if(!RESULTS.available){ box.append(el("div","small","No recorded results bundled with this deploy.")); return; }
+    box.append(el("div","small","Model: "+RESULTS.model+". Synthetic scenarios, small sample, each run twice."+(RESULTS.partial?" Partial run.":"")));
     const cols=["correct","correct_abstain","confident_wrong","missed","error","validator_interventions"];
-    const t=el("table"); const h=el("tr"); ["Mode",...cols.map(c=>c.replace(/_/g," "))].forEach(x=>h.append(el("th",null,x))); t.append(h);
+    const t=el("table"); const h=el("tr"); ["Mode","Correct","Correct abstain","Wrong","Missed","Error","Checks triggered"].forEach(x=>h.append(el("th",null,x))); t.append(h);
     Object.keys(RESULTS.total).forEach(m=>{const tr=el("tr"); tr.append(el("td",null,MODE[m]||m)); cols.forEach(c=>tr.append(el("td",null,String(RESULTS.total[m][c]||0)))); t.append(tr);});
     box.append(t);
-    box.append(el("div","small","\u201Cmissed\u201D means the model abstained although the evidence was sufficient. \u201Cconfident wrong\u201D means it named the wrong cause, or named one when it should have abstained."));
-  })(); return d;}
+    box.append(el("div","small","\"Missed\" = AI said I don’t know when there was enough evidence. \"Wrong\" = AI blamed the wrong thing."));
+  })(); return d;
+}
 
 function recordedForIncident(recd){
-  const w=el("div"); w.append(el("h3",null,"Recorded Gemini runs for this incident"));
+  const w=el("div","panel-section"); w.append(el("div","panel-title","Past Gemini runs for this incident"));
   if(!recd.rows.length){w.append(el("div","small","None recorded.")); return w;}
-  recd.rows.forEach(r=>{const c=el("div","card"); c.append(el("div","k",(MODE[r.mode]||r.mode)+", run "+(r.repeat+1)+" ("+recd.model+")"));
-    c.append(el("span","chip "+((r.outcome==="correct"||r.outcome==="correct_abstain")?"c-ok":(r.outcome==="missed"?"c-warn":"c-bad")),r.outcome.replace("_"," ")));
+  recd.rows.forEach(r=>{const c=el("div","info-card"); c.append(el("div","card-label",(MODE[r.mode]||r.mode)+", run "+(r.repeat+1)));
+    c.append(el("span","chip "+((r.outcome==="correct"||r.outcome==="correct_abstain")?"chip-live":(r.outcome==="missed"?"chip-unclear":"chip chip-notlive")),r.outcome.replace("_"," ")));
     if(r.reasoning) c.append(el("div","small",r.reasoning)); w.append(c);});
   return w;
 }
+
 // ---- Composer ----
 let evLines=[]; let lineId=0;
 function fieldsFor(kind){
-  const common=[["sha","text","A"]];
   if(kind==="commit") return [["sha","text","A"],["message","text","fix rounding"],["touches","text","pricing.py"]];
   if(kind==="build") return [["sha","text","A"],["digest","text","dA"]];
   if(kind==="deploy") return [["digest","text","dA"],["deploy_id","text","d1"],["status","select","success|failed"]];
   if(kind==="runtime_version") return [["digest","text","dA"]];
   if(kind==="rollout") return [["deploy_id","text","d1"],["status","select","success|partial|failed"]];
   if(kind==="config_change") return [["key","text","strict_mode"],["old","text","false"],["new","text","true"],["deploy_id","text","(optional)"]];
-  return common;
+  return [["sha","text","A"]];
 }
 function renderEv(){const host=$("evList"); host.replaceChildren();
   evLines.forEach((e,ix)=>{
@@ -531,18 +707,18 @@ function renderEv(){const host=$("evList"); host.replaceChildren();
     const t=el("input"); t.type="number"; t.value=e.minutes_before_incident; t.min=0; t.max=1440;
     t.title="minutes before incident"; t.addEventListener("input",()=>e.minutes_before_incident=+t.value);
     const i=el("input"); i.type="number"; i.value=e.ingest_delay_minutes; i.min=0;
-    i.title="ingest delay (minutes). Set >T to simulate a late record."; i.addEventListener("input",()=>e.ingest_delay_minutes=+i.value);
+    i.title="How many minutes later this record arrived"; i.addEventListener("input",()=>e.ingest_delay_minutes=+i.value);
     const lbl=el("div",null,e.kind.replace("_"," "));
-    const detail=el("div"); const fields=fieldsFor(e.kind);
+    const dtl=el("div"); const fields=fieldsFor(e.kind);
     fields.forEach(([k,tp,hint])=>{
       let ctrl; if(tp==="select"){ctrl=el("select"); hint.split("|").forEach(o=>{const op=el("option",null,o);op.value=o;ctrl.append(op);}); ctrl.value=e.data[k]||hint.split("|")[0];}
       else {ctrl=el("input"); ctrl.type="text"; ctrl.placeholder=hint; ctrl.value=e.data[k]||"";}
       ctrl.style.width="auto"; ctrl.style.margin="0 4px 0 0"; ctrl.title=k;
-      ctrl.addEventListener("input",()=>{e.data[k]=(k==="touches"?ctrl.value:ctrl.value);});
-      const w=el("span"); w.append(el("span","small",k+" ")); w.append(ctrl); detail.append(w);
+      ctrl.addEventListener("input",()=>{e.data[k]=ctrl.value;});
+      const w=el("span"); w.append(el("span","small",k+" ")); w.append(ctrl); dtl.append(w);
     });
     const x=el("button",null,"×"); x.addEventListener("click",()=>{evLines.splice(ix,1); renderEv();});
-    row.append(el("div","small","T−"+e.minutes_before_incident+"m"), lbl, el("div","small","+"+e.ingest_delay_minutes+"m"), detail, x);
+    row.append(el("div","small","T−"+e.minutes_before_incident+"m"), lbl, el("div","small","+"+e.ingest_delay_minutes+"m"), dtl, x);
     row.replaceChild(t, row.childNodes[0]); row.replaceChild(i, row.childNodes[2]);
     host.append(row);
   });
@@ -588,37 +764,39 @@ function loadPreset(name){ const p=PRESETS[name]; if(!p) return;
 
 function openModal(){ $("modal").classList.add("open"); if(!evLines.length) loadPreset("undeployed"); }
 function closeModal(){ $("modal").classList.remove("open"); }
-document.getElementById("composeBtn")?.addEventListener("click",openModal);
+$("composeBtn")?.addEventListener("click",openModal);
 document.querySelector("#modal .close")?.addEventListener("click",closeModal);
 $("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal();});
-document.querySelectorAll("#modal .preset button[data-preset]").forEach(b=>b.addEventListener("click",()=>loadPreset(b.dataset.preset)));
-document.querySelectorAll("#modal .pb button[data-add]").forEach(b=>b.addEventListener("click",()=>{const o=JSON.parse(b.dataset.add); addEv(o.source,o.kind,{},30,1);}));
-document.getElementById("goBtn").addEventListener("click",async()=>{
+$("helpBtn")?.addEventListener("click",()=>{$("helpOverlay").style.display="flex";});
+$("helpOverlay")?.addEventListener("click",e=>{if(e.target.id==="helpOverlay")e.target.style.display="none";});
+document.querySelectorAll("#modal .preset-btn[data-preset]").forEach(b=>b.addEventListener("click",()=>loadPreset(b.dataset.preset)));
+document.querySelectorAll("#modal .add-btns button[data-add]").forEach(b=>b.addEventListener("click",()=>{const o=JSON.parse(b.dataset.add); addEv(o.source,o.kind,{},30,1);}));
+$("goBtn").addEventListener("click",async()=>{
   const go=$("goBtn"); go.disabled=true;
   const payload={symptom:$("sympIn").value,service:$("svcIn").value,evidence:evLines.map(e=>({
     source:e.source,kind:e.kind,minutes_before_incident:+e.minutes_before_incident,ingest_delay_minutes:+e.ingest_delay_minutes,
     data:Object.fromEntries(Object.entries(e.data).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>k==="touches"?[k,String(v).split(",").map(s=>s.trim())]:[k,v]))
   })),ask_gemini:$("askGem").checked};
-  const out=$("composeOut"); out.replaceChildren(el("div","small","…running pipeline"));
+  const out=$("composeOut"); out.replaceChildren(el("div","small","… analyzing"));
   try{
     const r=await api("/api/custom/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     out.replaceChildren();
     const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0}; r.reconciliation.changes.forEach(c=>{if(c.status in cnt) cnt[c.status]++;});
-    const headline=el("div","headline",cnt.UNKNOWN?"Reconciled state has uncertainty":"Reconciled state is clean");
-    out.append(headline);
-    const g=el("div","glance"); [["DEPLOYED","Live"],["NOT_DEPLOYED","Not live"],["UNKNOWN","Unknown"]].forEach(([k,l])=>{const d=el("div"); const b=el("b",null,String(cnt[k])); b.className="c-"+k; d.append(b,el("span",null,l)); g.append(d);}); out.append(g);
-    if(r.reconciliation.contradictions.length){const c=el("div","card contra"); c.append(el("div","k","Contradictions")); r.reconciliation.contradictions.forEach(x=>c.append(el("div",null,x.type.replace(/_/g," ")))); out.append(c);}
-    const rc=el("div","recov"); rc.append(el("h3",null,"Recovery recommendation"));
-    const rr=el("div","row");
-    [["Naive","naive"],["Metis","metis"]].forEach(([lbl,k])=>{const col=el("div","c"); col.append(el("span","lbl",lbl)); const act=el("div","act",r.recovery[k].action.replace(/_/g," "));
-      const p=el("span","pill "+(r.recovery[k].valid?"ok":"bad"),r.recovery[k].valid?"VALID":"INVALID"); act.append(p); col.append(act);
-      col.append(el("div","why",r.recovery[k].why)); rr.append(col);});
+    out.append(el("div","headline",cnt.UNKNOWN?"Some things are unclear":"State is clear"));
+    const g=el("div","status-grid"); [["DEPLOYED","num-live","Running"],["NOT_DEPLOYED","num-notlive","Not running"],["UNKNOWN","num-unclear","Unclear"]].forEach(([k,nc,l])=>{const d=el("div","status-box"); const b=el("b",nc,String(cnt[k])); d.append(b,el("span","lbl",l)); g.append(d);}); out.append(g);
+    if(r.reconciliation.contradictions.length){const c=el("div","info-card danger"); c.append(el("div","card-label","Contradictions")); r.reconciliation.contradictions.forEach(x=>c.append(el("div",null,x.type.replace(/_/g," ")))); out.append(c);}
+    const rc=el("div","recovery"); rc.append(el("div","rec-head","What should we do?"));
+    const rr=el("div","rec-row");
+    [["Without Metis","naive"],["With Metis","metis"]].forEach(([lbl,k])=>{const col=el("div","rec-col"); col.append(el("div","rec-label",lbl));
+      const act=el("div","rec-action",r.recovery[k].action.replace(/_/g," "));
+      const p=el("span","validity-pill "+(r.recovery[k].valid?"pill-valid":"pill-invalid"),r.recovery[k].valid?"VALID":"INVALID"); act.append(p); col.append(act);
+      col.append(el("div","rec-why",r.recovery[k].why)); rr.append(col);});
     rc.append(rr); out.append(rc);
-    if(r.gemini){ const gm=el("div","card verdict"); gm.append(el("div","k","Gemini verdict (reconciled, admissibility-checked)"));
-      gm.append(el("div",null,r.gemini.abstained?"Abstained: insufficient evidence":"Probable cause: "+(r.gemini.cause_id||"(none)")));
+    if(r.gemini){const gm=el("div","info-card highlight"); gm.append(el("div","card-label","Gemini AI verdict"));
+      gm.append(el("div",null,r.gemini.abstained?"Not enough evidence to decide":"Probable cause: "+(r.gemini.cause_id||"(none)")));
       if(r.gemini.flags?.length) gm.append(el("div","err","Rejected: "+r.gemini.flags.join(", "))); out.append(gm);}
-    else if(r.gemini_error){ out.append(el("div","card contra err","Gemini: "+r.gemini_error));}
-  }catch(e){ out.replaceChildren(el("div","card contra err","Could not analyze: "+e.message)); }
+    else if(r.gemini_error){ out.append(el("div","info-card danger err","Gemini: "+r.gemini_error));}
+  }catch(e){ out.replaceChildren(el("div","info-card danger err","Error: "+e.message)); }
   finally{ go.disabled=false; }
 });
 

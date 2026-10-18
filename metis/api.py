@@ -2,24 +2,60 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from typing import Literal
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .investigate import investigate
 from .llm import GeminiClient, LLMError
-from .reconcile import reconcile, visible
+from .reconcile import compare_views, reconcile, visible
 from .scenarios import generate
 from .systems import r2_reconcile
 
-app = FastAPI(title="Metis", version="0.1.0")
-SCENARIOS = {s.id: s for s in generate(2, 7)}
+log = logging.getLogger("metis")
+_DOCS = os.environ.get("METIS_DOCS") == "1"          # API docs are off in production unless explicitly enabled
+app = FastAPI(title="Metis", version="0.2.0",
+              docs_url="/docs" if _DOCS else None, redoc_url=None, openapi_url="/openapi.json" if _DOCS else None)
+
+
+def _scenario_version() -> str:
+    """Show the same scenario set that the recorded results were produced on (results meta), else v1."""
+    v = os.environ.get("METIS_SCENARIO_VERSION")
+    if v in ("v1", "v2"):
+        return v
+    try:
+        path = Path(os.environ.get("METIS_RESULTS", "data/results.json"))
+        meta = json.loads(path.read_text()).get("meta", {}) if path.exists() else {}
+        return meta.get("scenario_version") if meta.get("scenario_version") in ("v1", "v2") else "v1"
+    except (OSError, ValueError):
+        return "v1"
+
+
+SCENARIO_VERSION = _scenario_version()
+SCENARIOS = {s.id: s for s in generate(2, 7, SCENARIO_VERSION)}
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    # The single-file UI uses inline script/style and makes same-origin requests only.
+    resp.headers["Content-Security-Policy"] = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+                                              "connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'")
+    return resp
+
+
 STATIC = Path(__file__).parent / "static"
 _client: GeminiClient | None = None
 LIVE_CAP = int(os.environ.get("METIS_LIVE_CAP", "25"))   # live Gemini calls per instance per UTC day
@@ -85,13 +121,20 @@ def incident(incident_id: str):
 
 @app.get("/api/incidents/{incident_id}/reconciliation")
 def reconciliation(incident_id: str):
+    """`changes` etc. describe the contemporaneous view (what an investigator at the time could know).
+    `retrospective` and `view_differences` show what changes once late-arriving records are counted."""
     sc = _get(incident_id)
-    return jsonable_encoder(reconcile(sc.evidence, sc.service, sc.incident_time))
+    both = compare_views(sc.evidence, sc.service, sc.incident_time)
+    out = jsonable_encoder(both["contemporaneous"])
+    out["retrospective"] = {"statuses": {c.id: c.status.value for c in both["retrospective"].changes},
+                            "basis": both["retrospective"].basis, "confidence": both["retrospective"].confidence}
+    out["view_differences"] = both["differences"]
+    return out
 
 
 class InvestigateReq(BaseModel):
-    incident_id: str
-    mode: str = "reconciled"   # deterministic | raw | reconciled
+    incident_id: str = Field(max_length=64)
+    mode: Literal["deterministic", "raw", "reconciled"] = "reconciled"
 
 
 @app.post("/api/investigate")
@@ -102,11 +145,13 @@ def run_investigation(req: InvestigateReq):
         return {"mode": "deterministic", "cause_id": p.cause_id, "abstained": p.cause_id is None,
                 "reason": p.reason, "evidence_ids": p.evidence_ids,
                 "reconciliation": jsonable_encoder(reconcile(sc.evidence, sc.service, sc.incident_time))}
-    if req.mode not in ("raw", "reconciled"):
-        raise HTTPException(422, "mode must be deterministic, raw or reconciled")
     client = _llm()
     _spend_live_call()
     inv = investigate(sc, client, req.mode)
+    if inv.error:
+        log.warning("investigation failed for %s (%s): %s", sc.id, req.mode, inv.error[:500])   # detail stays server-side
+        kind = "rate_limited" if "429" in inv.error else "unparseable_output" if "unparseable" in inv.error else "unavailable"
+        inv.error = f"The model call failed ({kind}). Recorded results are still available."
     return jsonable_encoder(inv)
 
 

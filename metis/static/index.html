@@ -92,7 +92,11 @@ function el(tag, cls, text){const e=document.createElement(tag); if(cls)e.classN
 const LABEL = {undeployed_fix:"A fix was committed but never shipped", late_deploy_event:"Deploy record arrived late",
   conflict_unresolvable:"Deploy log and runtime disagree", conflict_resolvable:"Disagreement settled by a failed rollout",
   config_without_deploy:"Config changed with no deploy", insufficient_evidence:"Not enough evidence",
-  unrelated_recent_change:"Recent change is unrelated", injected_commit_message:"Commit message tries to hijack the AI"};
+  unrelated_recent_change:"Recent change is unrelated", injected_commit_message:"Commit message tries to hijack the AI",
+  unmerged_branch:"Newest commit is on an unmerged branch", merge_commit_live:"Change ships through a merge commit",
+  cherry_pick_live:"Hotfix ships as a cherry-pick", revert_unknown:"A live revert: net effect not modelled",
+  rollback_older_after_newer:"Older artifact redeployed (rollback)", partial_rollout:"Partial rollout: two versions may serve",
+  late_record_no_probe:"Late deploy record, nothing else shows what is live", delimiter_injection:"Commit message forges evidence delimiters"};
 const MODE = {raw:"Gemini on the raw evidence", reconciled:"Gemini with reconciliation + validator"};
 let current=null, incidentTime=null;
 
@@ -141,7 +145,7 @@ async function select(id){
 function renderLedger(inc){
   const m=$("main"); m.replaceChildren();
   m.append(el("h2","symptom",inc.symptom));
-  m.append(el("div","sub","Incident "+inc.id+" at "+incidentTime.toUTCString()+". Observed facts: every record the system holds, oldest first. Hatched rows reached us after the incident, so an investigator at that moment could not have seen them."));
+  m.append(el("div","sub","Incident "+inc.id+" at "+incidentTime.toUTCString()+". Observed facts, ordered by when each thing happened. Hatched rows were recorded after the incident: they describe the past, but an investigator at that moment could not have seen them."));
   const ol=el("ol","ledger");
   inc.evidence.forEach(e=>{
     const li=el("li","ev s-"+e.source+(e.visible_at_incident?"":" late")); li.dataset.id=e.id;
@@ -166,7 +170,7 @@ function renderSide(inc, rec, recd){
   const s=$("side"); s.replaceChildren();
   s.append(el("h2",null,"Investigation"));
   const btns=el("div","btns");
-  [["deterministic","Reconcile only (no AI, free)"],["raw","Ask Gemini: raw evidence"],["reconciled","Ask Gemini: reconciled + validated"]].forEach(([mode,label])=>{
+  [["deterministic","Reconcile only (no AI, free)"],["raw","Ask Gemini: raw evidence"],["reconciled","Ask Gemini: reconciled + admissibility checks"]].forEach(([mode,label])=>{
     const b=el("button",null,label); b.addEventListener("click",()=>run(mode,btns,b)); btns.append(b);});
   s.append(btns, el("div","small","Gemini calls are capped per day to protect a free quota. Recorded results below always work."));
   s.append(el("div",null)); s.lastChild.id="result";
@@ -174,7 +178,15 @@ function renderSide(inc, rec, recd){
   s.append(el("h3",null,"Derived: what was live (deterministic)"));
   const live=el("div","card"); live.append(el("div","k","Live version"));
   live.append(el("div",null,(rec.active_digests.length?rec.active_digests.join(" or "):"Cannot be established")+"  ["+rec.confidence+" confidence]"));
-  live.append(el("div","small",rec.basis)); s.append(live);
+  live.append(el("div","small",rec.basis));
+  live.append(el("div","small","History model: "+({dag:"commit graph with parent links",linear_assumed:"linear history ASSUMED (no parent links recorded)",unsupported:"unsupported, so every change is UNKNOWN"}[rec.history_model]||rec.history_model)));
+  live.append(el("div","small","View: what an investigator could know at the incident time."));
+  s.append(live);
+  if(rec.view_differences&&rec.view_differences.length){
+    const k=el("div","card missing"); k.append(el("div","k","Known only later (retrospective view)"));
+    rec.view_differences.forEach(d=>{const r=el("div"); r.append(citeBtn(d.change_id)); r.append(document.createTextNode(": "+d.contemporaneous.replace("_"," ")+" at the time, "+d.retrospective.replace("_"," ")+" once late records are counted"));k.append(r);});
+    k.append(el("div","small","Records that reached us after the incident: "+rec.late_records.join(", ")+". They describe the past, but nobody could use them then."));
+    s.append(k);}
   const co=listCard("contra","Contradictory evidence",rec.contradictions,(d,c)=>{
     d.append(el("div",null,c.type.replace(/_/g," ")+(c.deploy_log_digest?": deploy log says "+c.deploy_log_digest+", runtime says "+c.runtime_digest:"")));
     (c.records||[]).forEach(r=>{d.append(citeBtn(r)); d.append(document.createTextNode(" "));});}); if(co)s.append(co);
@@ -182,6 +194,7 @@ function renderSide(inc, rec, recd){
   const t=el("table"); t.append(el("tr")); ["Change","Status","Why"].forEach(h=>t.lastChild.append(el("th",null,h)));
   rec.changes.forEach(c=>{const tr=el("tr"); const a=el("td"); a.append(citeBtn(c.id)); const st=el("td"); st.append(el("span","chip c-"+c.status,c.status.replace("_"," ")));
     tr.append(a,st,el("td","small",c.note)); t.append(tr);}); s.append(t);
+  s.append(el("div","small","NOT DEPLOYED needs positive evidence it was not live. UNKNOWN means evidence is missing, late or contradictory."));
 
   s.append(recordedForIncident(recd));
   const tb=el("details"); tb.append(el("summary",null,"Reveal ground truth (never shown to any investigator)"));
@@ -211,7 +224,9 @@ function renderResult(mode,r){
   const why = mode==="deterministic" ? r.reason : o.reasoning; if(why) v.append(el("div",null,why));
   if(o.confidence) v.append(el("div","small","Model confidence: "+o.confidence));
   wrap.append(v);
-  if(r.flags&&r.flags.length){const f=el("div","card contra"); f.append(el("div","k","Validator and checks")); r.flags.forEach(x=>f.append(el("div",null,x.replace(/_/g," ")))); wrap.append(f);}
+  if(r.flags&&r.flags.length){const f=el("div","card contra"); f.append(el("div","k","Admissibility checks (citations, timing, consistency with reconstructed state; not proof of cause)")); r.flags.forEach(x=>f.append(el("div",null,x.replace(/_/g," ")))); wrap.append(f);}
+  if(r.warnings&&r.warnings.length){const wc=el("div","card missing"); wc.append(el("div","k","Causal support NOT verified"));
+    r.warnings.forEach(x=>wc.append(el("div",null,({no_lexical_link_to_symptom:"The change shares no wording with the symptom.",liveness_not_cited:"The answer cites no record showing the change was live."}[x])||x))); wc.append(el("div","small","These checks cannot show that the change caused the incident.")); wrap.append(wc);}
   const cites=(o.cited_evidence_ids||r.evidence_ids||[]);
   if(cites.length){const c=el("div","card"); c.append(el("div","k","Evidence it relied on")); cites.forEach(i=>{c.append(citeBtn(i)); c.append(el("br"));}); wrap.append(c);}
   const mi=listCard("missing","Evidence that would settle it",o.missing_evidence,(d,t)=>d.append(el("div",null,t))); if(mi)wrap.append(mi);

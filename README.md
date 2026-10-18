@@ -19,7 +19,7 @@ A temporal evidence engine that reconstructs system state at incident time, dete
 **Verdict on our benchmark:** not shown. The baseline also made zero wrong or unsupported claims. What changed was over-abstention (5 missed answers down to 0). We did **not** measure recovery-action validity, which is the R2Act question; that is our main future test.
 
 **Live demo:** https://metis-805035413326.asia-south1.run.app
-**Synthetic data only. Read-only. Nothing is ever executed.**
+**Synthetic data only. Nothing is ever executed.**
 
 ## How it works
 
@@ -27,7 +27,7 @@ A temporal evidence engine that reconstructs system state at incident time, dete
 2. **Reconciliation** (`metis/reconcile.py`): deterministic code decides which changes were live at incident time (`DEPLOYED`, `NOT_DEPLOYED`, `UNKNOWN`, `APPLIED`), reports contradictions and missing evidence, and keeps two views: *contemporaneous* (only records that had both occurred and been ingested) and *retrospective* (occurred by then, ingested later). Future-dated records are excluded from both. A missing deploy record gives `UNKNOWN`; `NOT_DEPLOYED` needs positive evidence. History comes from recorded parent links (DAG); linear history is labelled as assumed, and unsupported histories, reverts and cherry-picks give `UNKNOWN`.
 3. **Gemini investigator** (`metis/investigate.py`): returns structured JSON that cites record ids, or abstains.
 4. **Admissibility check** (formerly "validator"): rejects answers that cite unknown records, cite nothing, or blame a change the reconciliation shows was not live or is unresolved. It checks evidence consistency only. It does **not** prove causality; it adds non-blocking warnings when a cause has no lexical link to the symptom or liveness is not cited.
-5. **API and UI** (`metis/api.py`, `metis/static/index.html`): FastAPI service and a one-page ledger view.
+5. **API and UI** (`metis/api.py`, `metis/static/index.html`): FastAPI service and a single-page app styled with Google's Material Design 3 (M3 tonal color system, Google Sans typography, elevation tokens). Includes a custom-incident composer for building and testing new scenarios interactively.
 
 Evidence text (commit messages, notes) is treated as untrusted data. Prompt v1 wrapped it in `<evidence>` tags, which injected text could forge; prompt v2 (default) passes escaped JSON. Scenario contains a commit message that tries to hijack the investigator.
 
@@ -69,21 +69,6 @@ Action space (bounded, read-only; nothing is ever executed): `rollback_latest_co
 | **Metis (reconciled state)** | v1 (16) | **16/16** | **0%** | - |
 | Naive always-rollback | v2 (32) | 18/32 | 43.8% | yes |
 | **Metis (reconciled state)** | v2 (32) | **32/32** | **0%** | - |
-
-Reproduce: `python -m metis.bench_recovery --version v2`. The validity check is state-only and deterministic; see `metis/actions.py` for the full definition. Labels and the action space are team-written; see Limitations.
-
-## Recovery-action validity (R2Act gap, now measured)
-
-R2Act (arXiv 2607.04623) reports that recovery-oriented methods pick an invalid action for 39.5% to 62% of correctly diagnosed Kubernetes incidents. Earlier versions of this project did not measure recovery validity. The deterministic experiment below does.
-
-Action space (bounded, read-only; nothing is ever executed): `rollback_latest_commit`, `deploy_pending_change`, `revert_config`, `no_action_safe`, `request_more_evidence`. Validity = the action is defined for the reconstructed state; it does NOT claim the action will fix the incident.
-
-| System | Scenario set | Valid actions | Invalid rate | In R2Act range? |
-|---|---|---|---|---|
-| Naive always-rollback | v1 (16) | 10/16 | 37.5% | yes (bottom) |
-| **Metis (reconciled state)** | v1 (16) | **16/16** | **0%** | — |
-| Naive always-rollback | v2 (32) | 18/32 | 43.8% | yes |
-| **Metis (reconciled state)** | v2 (32) | **32/32** | **0%** | — |
 
 Reproduce: `python -m metis.bench_recovery --version v2`. The validity check is state-only and deterministic; see `metis/actions.py` for the full definition. Labels and the action space are team-written; see Limitations.
 

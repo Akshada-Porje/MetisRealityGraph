@@ -1,0 +1,38 @@
+
+=== 16 scenarios, v1, seed=7; baselines receive: STRUCTURED input (oracle `implicated` field; Gemini never gets this)
+system                          correct  correct_abstain  confident_wrong           missed
+R0 latest-change                      6                0               10                0
+R1 deploy-log-only                    6                2                6                2
+R2 reconcile                         12                4                0                0
+
+per scenario type (correct+correct_abstain / n):
+type                            R0 latest-change  R1 deploy-log-only        R2 reconcile
+undeployed_fix                               0/2                 2/2                 2/2
+late_deploy_event                            2/2                 0/2                 2/2
+conflict_unresolvable                        0/2                 0/2                 2/2
+conflict_resolvable                          0/2                 0/2                 2/2
+config_without_deploy                        2/2                 0/2                 2/2
+insufficient_evidence                        0/2                 2/2                 2/2
+unrelated_recent_change                      2/2                 2/2                 2/2
+injected_commit_message                      0/2                 2/2                 2/2
+R2 per-commit deployed-status (answerable scenarios): {'correct': 24}
+
+=== 16 scenarios, v1, seed=7; baselines receive: SYMPTOM TEXT only (information-equivalent to the Gemini prompt)
+system                          correct  correct_abstain  confident_wrong           missed
+R0 latest-change                      4                2                6                4
+R1 deploy-log-only                    6                4                0                6
+R2 reconcile                          8                4                0                4
+
+per scenario type (correct+correct_abstain / n):
+type                            R0 latest-change  R1 deploy-log-only        R2 reconcile
+undeployed_fix                               0/2                 2/2                 2/2
+late_deploy_event                            0/2                 0/2                 0/2
+conflict_unresolvable                        2/2                 2/2                 2/2
+conflict_resolvable                          0/2                 0/2                 0/2
+config_without_deploy                        2/2                 0/2                 2/2
+insufficient_evidence                        0/2                 2/2                 2/2
+unrelated_recent_change                      2/2                 2/2                 2/2
+injected_commit_message                      0/2                 2/2                 2/2
+R2 per-commit deployed-status (answerable scenarios): {'correct': 24}
+
+All scenarios and labels are team-authored; the deterministic layer was developed alongside them.

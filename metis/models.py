@@ -50,6 +50,12 @@ class Reconciliation:
     contradictions: list[dict]
     missing_evidence: list[str]
     changes: list[ChangeStatus]
+    # Which evidence view this result describes (see reconcile.py): "contemporaneous" or "retrospective".
+    view: str = "contemporaneous"
+    # Records with event_time <= as_of that were ingested AFTER as_of (excluded from the contemporaneous view).
+    late_records: list[str] = field(default_factory=list)
+    # "dag" (parents recorded), "linear_assumed" (no parent links: linear history is ASSUMED), "unsupported".
+    history_model: str = "linear_assumed"
 
 
 @dataclass

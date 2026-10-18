@@ -5,7 +5,8 @@ from collections import Counter, defaultdict
 
 d = json.load(open(sys.argv[1] if len(sys.argv) > 1 else "results.json"))
 rows = d["rows"]
-print("model:", d.get("model"), "| rows:", len(rows), "| partial:", d.get("partial", False))
+meta = d.get("meta", {"scenario_version": "v1 (no meta recorded)", "prompt_version": "1 (no meta recorded)"})
+print("model:", d.get("model"), "| rows:", len(rows), "| partial:", d.get("partial", False), "| meta:", meta)
 by = defaultdict(lambda: defaultdict(Counter))
 for r in rows:
     by[r["type"]][r["mode"]][r["outcome"]] += 1

@@ -18,22 +18,22 @@ A temporal evidence engine that reconstructs system state at incident time, dete
 
 **Verdict on our benchmark:** not shown. The baseline also made zero wrong or unsupported claims. What changed was over-abstention (5 missed answers down to 0). We did **not** measure recovery-action validity, which is the R2Act question; that is our main future test.
 
-**Live demo:** PASTE LIVE URL HERE
+**Live demo:** https://metis-805035413326.asia-south1.run.app
 **Synthetic data only. Read-only. Nothing is ever executed.**
 
 ## How it works
 
 1. **Evidence ledger** (`metis/models.py`): every record keeps source, event time and ingest time.
-2. **Reconciliation** (`metis/reconcile.py`): deterministic code decides which changes were live at incident time (`DEPLOYED`, `NOT_DEPLOYED`, `UNKNOWN`, `APPLIED`), reports contradictions and missing evidence, and ignores anything ingested after the incident.
+2. **Reconciliation** (`metis/reconcile.py`): deterministic code decides which changes were live at incident time (`DEPLOYED`, `NOT_DEPLOYED`, `UNKNOWN`, `APPLIED`), reports contradictions and missing evidence, and keeps two views: *contemporaneous* (only records that had both occurred and been ingested) and *retrospective* (occurred by then, ingested later). Future-dated records are excluded from both. A missing deploy record gives `UNKNOWN`; `NOT_DEPLOYED` needs positive evidence. History comes from recorded parent links (DAG); linear history is labelled as assumed, and unsupported histories, reverts and cherry-picks give `UNKNOWN`.
 3. **Gemini investigator** (`metis/investigate.py`): returns structured JSON that cites record ids, or abstains.
-4. **Validator**: rejects answers that cite unknown records, cite nothing, or blame a change the reconciliation shows was not live or is unresolved.
+4. **Admissibility check** (formerly "validator"): rejects answers that cite unknown records, cite nothing, or blame a change the reconciliation shows was not live or is unresolved. It checks evidence consistency only. It does **not** prove causality; it adds non-blocking warnings when a cause has no lexical link to the symptom or liveness is not cited.
 5. **API and UI** (`metis/api.py`, `metis/static/index.html`): FastAPI service and a one-page ledger view.
 
-Evidence text (commit messages, notes) is treated as untrusted data. One scenario contains a commit message that tries to hijack the investigator.
+Evidence text (commit messages, notes) is treated as untrusted data. Prompt v1 wrapped it in `<evidence>` tags, which injected text could forge; prompt v2 (default) passes escaped JSON. Scenario contains a commit message that tries to hijack the investigator.
 
 ## Benchmark (what we measured)
 
-16 synthetic scenarios (8 types x 2), each run twice per mode, model `gemini-3.8-flash`. 24 runs per mode are answerable, 8 are not (the correct output is to abstain).
+**Original run** (scenario set v1, frozen, fingerprint `08eb9a5a615de2c0`; prompt v1): 16 synthetic scenarios (8 types x 2), each run twice per mode, model `gemini-3.8-flash`. 24 runs per mode are answerable, 8 are not (the correct output is to abstain).
 
 | Mode | Correct cause (of 24) | Correct abstain (of 8) | Wrong attribution | Missed (abstained, evidence sufficed) |
 |---|---|---|---|---|
@@ -53,16 +53,18 @@ Reproduce (needs your own key; costs real API calls):
     python -m metis.bench_llm --n 2 --repeats 2 --modes raw,reconciled,raw_nudged --sleep 2 --out results.json
     python -m metis.report results.json
 
-Raw results are committed in `data/results.json` and shown in the app as recorded runs.
+Raw results are committed in `data/results.json` (original v1 run, preserved unmodified) and shown in the app as recorded runs. See `data/RESULTS_NOTES.md`.
+
+**Gemini on the harder v2 set (16 types, adversarial) with prompt v2: not yet run.** Deterministic baselines for both sets are in `data/bench_det_v1.txt` and `data/bench_det_v2.txt`. On v2 (structured input) R0 latest-change gets 22 of 32 confidently wrong, R1 deploy-log-only 12, R2 reconcile 0. On text-only v1 input (information-equivalent to Gemini) R2 drops from 12 correct to 8 with 4 missed, so the oracle-input comparison overstates it.
 
 ## Limitations (please read)
 
 - **We wrote the scenarios and the ground truth.** Two scenario types (`conflict_resolvable`, `unrelated_recent_change`) have debatable labels: in the cases raw Gemini missed, its reasoning about what was deployed was correct and it declined to attribute because the commit text did not clearly match the symptom. That is defensible.
 - **Small sample.** Repeats are not independent. 24/24 versus 19/24 is suggestive, not proof. We did not isolate the mechanism of the difference.
-- **The deterministic layer scores 100% on scenarios designed alongside it.** That shows the code does what it was designed to do, not that it generalises. Its baseline comparison also receives a structured `implicated` field that the Gemini modes do not.
-- **The validator never fired on real Gemini output.** It is tested only with unit tests and a fake client, so we claim no prevented errors.
+- **The deterministic layer scores 0 wrong on scenarios designed alongside it.** That shows the code does what it was designed to do, not that it generalises. The structured baselines receive an oracle `implicated` field that Gemini never sees; use the text-only numbers for comparison with Gemini.
+- **The admissibility check never fired on real Gemini output.** It is tested only with unit tests and a fake client, so we claim no prevented errors.
 - A well-prompted Gemini already avoided the dangerous failures we tested. We did not show that reconciliation reduces misattribution.
-- Linear git history only; one model; synthetic data; no real incidents; no measurement of investigation time.
+- Histories beyond recorded parent links are `UNKNOWN`; recommended actions are advisory and unscored (recovery validity is unmeasured); one model; synthetic data; no real incidents; no measurement of investigation time.
 
 ## Prior art
 

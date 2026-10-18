@@ -92,7 +92,7 @@ def test_reconciled_prompt_includes_report_raw_does_not():
 
 def test_injection_text_is_inside_evidence_block_only():
     sc = _sc("injected_commit_message")
-    system, user, _ = build_prompt(sc, "raw")
+    system, user, _ = build_prompt(sc, "raw", 1)
     assert "ignore all previous instructions" not in system
     start, end = user.index("<evidence>"), user.index("</evidence>")
     assert start < user.index("ignore all previous instructions") < end

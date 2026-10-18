@@ -49,26 +49,32 @@ def main() -> None:
     ap.add_argument("--max-calls", type=int, default=400)
     ap.add_argument("--out", default="results.json")
     ap.add_argument("--model", default=None, help="override GEMINI_MODEL (use the SAME model for all runs you compare)")
+    ap.add_argument("--scenario-version", default="v1", choices=["v1", "v2"])
+    ap.add_argument("--prompt-version", type=int, default=2, choices=[1, 2],
+                    help="1 = original delimiter prompt (used for the saved v1 results); 2 = JSON-escaped prompt")
     ap.add_argument("--modes", default="raw,reconciled", help="comma list from: raw, reconciled, raw_nudged")
     ap.add_argument("--sleep", type=float, default=0.0, help="seconds to pause after each uncached API call")
     a = ap.parse_args()
     client = GeminiClient(model=a.model)
-    scenarios = generate(a.n, a.seed)
+    scenarios = generate(a.n, a.seed, a.scenario_version)
     modes = a.modes.split(",")
     total = len(scenarios) * len(modes) * a.repeats
     if total > a.max_calls:
         raise SystemExit(f"{total} calls exceeds --max-calls {a.max_calls}")
-    print(f"model={client.model} scenarios={len(scenarios)} repeats={a.repeats} calls<={total}")
+    print(f"model={client.model} scenario_version={a.scenario_version} prompt_version={a.prompt_version} "
+          f"scenarios={len(scenarios)} repeats={a.repeats} calls<={total}")
 
+    meta = {"scenario_version": a.scenario_version, "prompt_version": a.prompt_version, "n_per_type": a.n,
+            "seed": a.seed, "repeats": a.repeats, "modes": modes, "n_scenarios": len(scenarios)}
     rows, stats = [], {m: defaultdict(Counter) for m in modes}
     tok = {m: Counter() for m in modes}
     for sc in scenarios:
         for m in modes:
             for r in range(a.repeats):
                 try:
-                    inv = investigate(sc, client, m, r)
+                    inv = investigate(sc, client, m, r, a.prompt_version)
                 except QuotaExhausted as e:
-                    json.dump({"model": client.model, "rows": rows, "partial": True}, open(a.out, "w"), indent=1)
+                    json.dump({"model": client.model, "meta": meta, "rows": rows, "partial": True}, open(a.out, "w"), indent=1)
                     raise SystemExit(f"\nSTOPPED: quota exhausted ({str(e)[:300]})\n"
                                      f"{len(rows)} results saved to {a.out}; rerun later, cached calls are free.")
                 if not inv.cached and a.sleep:
@@ -83,11 +89,13 @@ def main() -> None:
                 blamed_undeployed = (inv.cause_id in sc.truth.commit_deployed
                                      and not sc.truth.commit_deployed[inv.cause_id])
                 stats[m]["all"]["blamed_undeployed"] += blamed_undeployed
+                stats[m]["all"]["warned"] += bool(inv.warnings)
+                stats[m]["all"]["validator"] += any(f.startswith("validator_abstained") for f in inv.flags)
                 tok[m]["prompt"] += inv.prompt_tokens
                 tok[m]["output"] += inv.output_tokens
                 rows.append({"scenario": sc.id, "type": sc.type, "mode": m, "repeat": r, "outcome": o,
                              "cause": inv.cause_id, "truth": sc.truth.cause_id, "flags": inv.flags,
-                             "error": inv.error, "reasoning": (inv.output or {}).get("reasoning"),
+                             "warnings": inv.warnings, "error": inv.error, "reasoning": (inv.output or {}).get("reasoning"),
                              "latency_s": round(inv.latency_s, 2)})
     print(f"\n{'mode':12s}{'n':>5s}{'correct':>9s}{'c_abst':>8s}{'conf_wrong':>12s}{'missed':>8s}{'error':>7s}"
           f"{'fab_cite':>10s}{'undeployed':>11s}{'injected':>9s}")
@@ -99,8 +107,8 @@ def main() -> None:
               f"{s['missed']:>8d}{s['error']:>7d}{s['fabricated_citation']:>10d}"
               f"{s['blamed_undeployed']:>11d}{s['injection_followed']:>9d}"
               f"   confident_wrong rate {s['confident_wrong']/max(n,1):.2f} [95% CI {cw_lo:.2f}-{cw_hi:.2f}]")
-        print(f"{'':12s}tokens prompt={tok[m]['prompt']} output={tok[m]['output']}")
-    json.dump({"model": client.model, "rows": rows}, open(a.out, "w"), indent=1)
+        print(f"{'':12s}tokens prompt={tok[m]['prompt']} output={tok[m]['output']}  validator_interventions={s['validator']}  causal-support warnings={s['warned']}")
+    json.dump({"model": client.model, "meta": meta, "rows": rows}, open(a.out, "w"), indent=1)
     print(f"\nper-call rows written to {a.out}. Synthetic, author-written scenarios; small n.")
 
 

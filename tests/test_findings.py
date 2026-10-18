@@ -381,3 +381,9 @@ def test_f9_reconciliation_endpoint_exposes_both_views():
     from fastapi.testclient import TestClient
     r = TestClient(api.app).get("/api/incidents/late-0/reconciliation").json()
     assert r["view"] == "contemporaneous" and "retrospective" in r and "view_differences" in r and "history_model" in r
+
+
+def test_health_available_under_api_prefix():
+    # Cloud Run's front end can intercept /healthz, so the UI uses /api/health.
+    from fastapi.testclient import TestClient
+    assert TestClient(api.app).get("/api/health").json()["ok"] is True

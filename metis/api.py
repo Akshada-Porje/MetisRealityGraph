@@ -98,6 +98,7 @@ def _get(incident_id: str):
     return sc
 
 
+@app.get("/api/health")
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "llm_configured": bool(os.environ.get("GEMINI_API_KEY") and os.environ.get("GEMINI_MODEL"))}

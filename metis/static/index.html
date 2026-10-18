@@ -165,7 +165,7 @@ function summarise(e){
 }
 
 async function init(){
-  try{const h=await api("/healthz");
+  try{const h=await api("/api/health");
     $("status").textContent="Synthetic incidents only. Read-only: nothing here changes any system. "+
       (h.llm_configured?"Live Gemini is available (capped).":"Live Gemini is off; recorded results and the deterministic engine still work.");
   }catch(e){}

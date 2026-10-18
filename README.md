@@ -57,6 +57,21 @@ Raw results are committed in `data/results.json` (original v1 run, preserved unm
 
 **Gemini on the harder v2 set (16 types, adversarial) with prompt v2: not yet run.** Deterministic baselines for both sets are in `data/bench_det_v1.txt` and `data/bench_det_v2.txt`. On v2 (structured input) R0 latest-change gets 22 of 32 confidently wrong, R1 deploy-log-only 12, R2 reconcile 0. On text-only v1 input (information-equivalent to Gemini) R2 drops from 12 correct to 8 with 4 missed, so the oracle-input comparison overstates it.
 
+## Recovery-action validity (R2Act gap, now measured)
+
+R2Act (arXiv 2607.04623) reports that recovery-oriented methods pick an invalid action for 39.5% to 62% of correctly diagnosed Kubernetes incidents. Earlier versions of this project did not measure recovery validity. The deterministic experiment below does.
+
+Action space (bounded, read-only; nothing is ever executed): `rollback_latest_commit`, `deploy_pending_change`, `revert_config`, `no_action_safe`, `request_more_evidence`. Validity = the action is defined for the reconstructed state; it does NOT claim the action will fix the incident.
+
+| System | Scenario set | Valid actions | Invalid rate | In R2Act range? |
+|---|---|---|---|---|
+| Naive always-rollback | v1 (16) | 10/16 | 37.5% | yes (bottom) |
+| **Metis (reconciled state)** | v1 (16) | **16/16** | **0%** | - |
+| Naive always-rollback | v2 (32) | 18/32 | 43.8% | yes |
+| **Metis (reconciled state)** | v2 (32) | **32/32** | **0%** | - |
+
+Reproduce: `python -m metis.bench_recovery --version v2`. The validity check is state-only and deterministic; see `metis/actions.py` for the full definition. Labels and the action space are team-written; see Limitations.
+
 ## Limitations (please read)
 
 - **We wrote the scenarios and the ground truth.** Two scenario types (`conflict_resolvable`, `unrelated_recent_change`) have debatable labels: in the cases raw Gemini missed, its reasoning about what was deployed was correct and it declined to attribute because the commit text did not clearly match the symptom. That is defensible.

@@ -115,7 +115,24 @@ aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
 .stage pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;font:11px/1.4 var(--mono);background:var(--paper);border:1px solid var(--rule);padding:8px;margin:6px 0 0}
 .stage details{margin-top:4px}
 .stage .who{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;padding:0 6px;border-radius:3px;margin-left:6px;background:var(--panel);border:1px solid var(--rule)}
+
 .stage .who.code{color:var(--ok)} .stage .who.ai{color:var(--fact)}
+.recov{margin-top:16px;border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.recov h3{background:var(--panel);padding:8px 12px;margin:0;font-size:14px;border-bottom:1px solid var(--rule)}
+.recov .row{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--rule)}
+.recov .row:last-child{border-bottom:0}
+.recov .c{padding:10px 12px;font-size:13px}
+.recov .c + .c{border-left:1px solid var(--rule)}
+.recov .lbl{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:4px}
+.recov .act{font:600 14px var(--serif)}
+.recov .pill{display:inline-block;font:600 10px var(--sans);padding:1px 6px;border-radius:9px;margin-left:6px;text-transform:uppercase;letter-spacing:.05em}
+.recov .pill.ok{background:#2f7d4f;color:#fff} .recov .pill.bad{background:#b3261e;color:#fff}
+.recov .why{color:var(--muted);margin-top:4px}
+.recov .foot{padding:8px 12px;background:var(--panel);font-size:12px;color:var(--muted);border-top:1px solid var(--rule)}
+.tt{display:flex;align-items:center;gap:6px;margin:6px 0 10px;font-size:13px;flex-wrap:wrap}
+.tt button{border:1px solid var(--rule);background:var(--panel);padding:3px 10px;border-radius:14px;font-size:12px}
+.tt button[aria-current=true]{background:var(--fact);color:#fff;border-color:var(--fact)}
+
 @media (prefers-reduced-motion:no-preference){.stage{animation:fi .35s ease both}@keyframes fi{from{opacity:0;transform:translateY(4px)}}}
 
 .kind{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:0 5px;margin-right:6px;color:var(--muted)}
@@ -226,6 +243,22 @@ function renderLedger(inc){
     li.append(el("div","id",e.id)); ol.append(li);
   });
   m.append(ol, el("div","incident-mark","Incident: "+inc.symptom));
+  // --- Time travel ---
+  const tt=el("div","tt"); tt.append(el("span","small","What would you have known at:"));
+  [[-30,"T\u221230m"],[0,"T (incident)"],[30,"T+30m"]].forEach(([off,lbl])=>{
+    const b=el("button",null,lbl); if(off===0) b.setAttribute("aria-current","true");
+    b.addEventListener("click",async()=>{
+      tt.querySelectorAll("button").forEach(x=>x.removeAttribute("aria-current")); b.setAttribute("aria-current","true");
+      const as_of=new Date(incidentTime.getTime()+off*60000).toISOString();
+      const rec=await api(`/api/incidents/${inc.id}/reconciliation?as_of=${encodeURIComponent(as_of)}`).catch(()=>null);
+      if(!rec) return; const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0};
+      rec.changes.forEach(c=>{if(c.status in cnt) cnt[c.status]++;});
+      const msg=`At ${lbl}: ${cnt.DEPLOYED} DEPLOYED, ${cnt.NOT_DEPLOYED} NOT DEPLOYED, ${cnt.UNKNOWN} UNKNOWN. ${rec.late_records.length?("Later-arriving records: "+rec.late_records.length):"No late records at this time."}`;
+      let note=document.getElementById("tt-note"); if(!note){note=el("div","small"); note.id="tt-note"; tt.append(note);} note.textContent=msg;
+    });
+    tt.append(b);
+  });
+  m.append(tt);
   m.append(recordedBlock());
 }
 
@@ -270,6 +303,22 @@ function renderSide(inc, rec, recd){
   rec.changes.forEach(c=>{const tr=el("tr"); const a=el("td"); a.append(citeBtn(c.id)); const st=el("td"); st.append(el("span","chip c-"+c.status,c.status.replace("_"," ")));
     tr.append(a,st,el("td","small",c.note)); t.append(tr);}); s.append(t);
   s.append(el("div","small","NOT DEPLOYED needs positive evidence it was not live. UNKNOWN means evidence is missing, late or contradictory."));
+
+  // --- Recovery recommendation (R2Act-style validity, no execution) ---
+  const rc = el("div","recov"); rc.append(el("h3",null,"Recovery recommendation (read-only; nothing is executed)"));
+  const rr = el("div","row");
+  const nb = el("div","c"); nb.append(el("span","lbl","Naive always-rollback"));
+  const nbA = el("div","act","\u2026"); nb.append(nbA); const nbW = el("div","why",""); nb.append(nbW); rr.append(nb);
+  const mb = el("div","c"); mb.append(el("span","lbl","Metis (uses reconstructed state)"));
+  const mbA = el("div","act","\u2026"); mb.append(mbA); const mbW = el("div","why",""); mb.append(mbW); rr.append(mb);
+  rc.append(rr); rc.append(el("div","foot","Validity = the action is defined for the reconstructed state. It does not mean the action will fix the incident."));
+  s.append(rc);
+  api("/api/incidents/"+inc.id+"/recovery").then(r=>{
+    const draw=(hostA,hostW,x)=>{ hostA.textContent=x.action.replace(/_/g," ");
+      const p=el("span","pill "+(x.valid?"ok":"bad"),x.valid?"VALID":"INVALID"); hostA.append(p);
+      hostW.textContent=x.why;};
+    draw(nbA,nbW,r.naive); draw(mbA,mbW,r.metis);
+  }).catch(()=>{});
 
   s.append(recordedForIncident(recd));
   const tb=el("details"); tb.append(el("summary",null,"Reveal ground truth (never shown to any investigator)"));

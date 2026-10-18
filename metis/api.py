@@ -15,7 +15,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from .investigate import investigate
+from .investigate import build_prompt, investigate
 from .llm import GeminiClient, LLMError
 from .reconcile import compare_views, reconcile, visible
 from .scenarios import generate
@@ -131,6 +131,33 @@ def reconciliation(incident_id: str):
                             "basis": both["retrospective"].basis, "confidence": both["retrospective"].confidence}
     out["view_differences"] = both["differences"]
     return out
+
+
+@app.get("/api/incidents/{incident_id}/pipeline")
+def pipeline(incident_id: str, mode: Literal["raw", "reconciled"] = "reconciled"):
+    """Everything the engine does before the model is called, so the UI can show it step by step.
+    The prompt returned is exactly what build_prompt produces for that mode (evidence only; no secrets)."""
+    sc = _get(incident_id)
+    vis_c = visible(sc.evidence, sc.service, sc.incident_time, "contemporaneous")
+    vis_r = visible(sc.evidence, sc.service, sc.incident_time, "retrospective")
+    both = compare_views(sc.evidence, sc.service, sc.incident_time)
+    rec = both["contemporaneous"]
+    system, user, _ = build_prompt(sc, mode)
+    cap = 20000
+    return {
+        "ledger": {"total": len(sc.evidence), "sources": sorted({e.source for e in sc.evidence})},
+        "time_gate": {"as_of": sc.incident_time.isoformat(), "visible_contemporaneous": len(vis_c),
+                      "visible_retrospective": len(vis_r),
+                      "excluded_late_or_future": sorted(e.id for e in sc.evidence if e.id not in {v.id for v in vis_c})},
+        "reconstruction": {"history_model": rec.history_model, "active_digests": rec.active_digests,
+                           "confidence": rec.confidence, "basis": rec.basis,
+                           "changes": [{"id": c.id, "status": c.status.value, "note": c.note} for c in rec.changes]},
+        "cross_check": {"contradictions": rec.contradictions, "missing_evidence": rec.missing_evidence,
+                        "differences_when_late_records_counted": both["differences"]},
+        "prompt": {"mode": mode, "prompt_version": 2, "system_chars": len(system), "user_chars": len(user),
+                   "includes_reconciliation": mode == "reconciled",
+                   "system": system[:cap], "user": user[:cap], "user_truncated": len(user) > cap},
+    }
 
 
 class InvestigateReq(BaseModel):

@@ -387,3 +387,16 @@ def test_health_available_under_api_prefix():
     # Cloud Run's front end can intercept /healthz, so the UI uses /api/health.
     from fastapi.testclient import TestClient
     assert TestClient(api.app).get("/api/health").json()["ok"] is True
+
+
+def test_pipeline_trace_matches_engine_and_exposes_exact_prompt():
+    from fastapi.testclient import TestClient
+    c = TestClient(api.app)
+    p = c.get("/api/incidents/late-0/pipeline?mode=reconciled").json()
+    assert p["ledger"]["total"] >= p["time_gate"]["visible_retrospective"] >= p["time_gate"]["visible_contemporaneous"]
+    assert p["time_gate"]["excluded_late_or_future"]                 # late-0 has a record that arrived after the incident
+    assert p["prompt"]["includes_reconciliation"] and "<reconciliation_json>" in p["prompt"]["user"] and not p["prompt"]["user_truncated"]
+    raw = c.get("/api/incidents/late-0/pipeline?mode=raw").json()
+    assert not raw["prompt"]["includes_reconciliation"] and "<reconciliation_json>" not in raw["prompt"]["user"]
+    assert c.get("/api/incidents/late-0/pipeline?mode=bogus").status_code == 422
+    assert c.get("/api/incidents/nope/pipeline").status_code == 404

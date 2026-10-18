@@ -154,7 +154,7 @@ aside{border-left:1px solid var(--outline-variant);background:var(--surface-cont
 /* Status glance (M3 cards) */
 .status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .status-box{border:1px solid var(--outline-variant);border-radius:var(--radius-sm);padding:12px;text-align:center;background:var(--surface);box-shadow:var(--elevation-1)}
-.status-box .num{font-size:28px;font-weight:500;display:block}
+.status-box .num{font-size:28px;font-weight:500;display:block;margin-bottom:4px}
 .status-box .lbl{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--on-surface-variant)}
 .num-live{color:var(--tertiary)} .num-notlive{color:var(--on-surface-variant)} .num-unclear{color:var(--warning)}
 
@@ -275,7 +275,6 @@ details{margin-top:14px} summary{cursor:pointer;font-weight:500;font-size:14px;c
   <div class="logo"><span>Metis</span></div>
   <div class="sep"></div>
   <div class="pills">
-    <span class="pill pill-safe">Read-only</span>
     <span class="pill pill-data">Synthetic data</span>
   </div>
   <div class="right">
@@ -543,7 +542,7 @@ function renderSide(inc, rec, recd){
   stateSec.append(el("div","panel-title",hd));
   const g=el("div","status-grid");
   [["DEPLOYED","num-live","Running"],["NOT_DEPLOYED","num-notlive","Not running"],["UNKNOWN","num-unclear","Unclear"]].forEach(([k,nc,l])=>{
-    const d=el("div","status-box"); const b=el("b",nc,String(cnt[k])); d.append(b,el("span","lbl",l)); g.append(d);
+    const d=el("div","status-box"); const b=el("b","num "+nc,String(cnt[k])); d.append(b,el("span","lbl",l)); g.append(d);
   });
   stateSec.append(g);
 
@@ -821,7 +820,7 @@ $("goBtn").addEventListener("click",async()=>{
     out.replaceChildren();
     const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0}; r.reconciliation.changes.forEach(c=>{if(c.status in cnt) cnt[c.status]++;});
     out.append(el("div","headline",cnt.UNKNOWN?"Some things are unclear":"State is clear"));
-    const g=el("div","status-grid"); [["DEPLOYED","num-live","Running"],["NOT_DEPLOYED","num-notlive","Not running"],["UNKNOWN","num-unclear","Unclear"]].forEach(([k,nc,l])=>{const d=el("div","status-box"); const b=el("b",nc,String(cnt[k])); d.append(b,el("span","lbl",l)); g.append(d);}); out.append(g);
+    const g=el("div","status-grid"); [["DEPLOYED","num-live","Running"],["NOT_DEPLOYED","num-notlive","Not running"],["UNKNOWN","num-unclear","Unclear"]].forEach(([k,nc,l])=>{const d=el("div","status-box"); const b=el("b","num "+nc,String(cnt[k])); d.append(b,el("span","lbl",l)); g.append(d);}); out.append(g);
     if(r.reconciliation.contradictions.length){const c=el("div","info-card danger"); c.append(el("div","card-label","Contradictions")); r.reconciliation.contradictions.forEach(x=>c.append(el("div",null,x.type.replace(/_/g," ")))); out.append(c);}
     const rc=el("div","recovery"); rc.append(el("div","rec-head","What should we do?"));
     const rr=el("div","rec-row");

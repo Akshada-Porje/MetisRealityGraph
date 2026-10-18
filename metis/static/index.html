@@ -101,7 +101,23 @@ aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
 .banner{border-radius:4px;padding:12px 14px;margin:8px 0;color:#fff;font:600 17px var(--serif)}
 .banner.v{background:var(--fact)} .banner.a{background:var(--warn)} .banner.x{background:var(--bad)}
 .banner small{display:block;font:400 13px var(--sans);opacity:.92;margin-top:2px}
-.ev.hl{box-shadow:inset 3px 0 0 var(--bad)}
+
+.trace{margin:6px 0 10px;padding-left:4px}
+.stage{position:relative;margin:0 0 4px 12px;padding:2px 0 8px 18px;border-left:2px solid var(--rule)}
+.stage::before{content:"";position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--panel);border:2px solid var(--dim)}
+.stage.done::before{background:var(--ok);border-color:var(--ok)}
+.stage.run::before{border-color:var(--fact);border-top-color:transparent;animation:sp .8s linear infinite}
+.stage.warn::before{background:var(--warn);border-color:var(--warn)}
+.stage.bad::before{background:var(--bad);border-color:var(--bad)}
+.stage .st{font-weight:600;font-size:14px}
+.stage .sd{font-size:13px;color:var(--muted)}
+.stage .sd b{color:var(--ink)}
+.stage pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;font:11px/1.4 var(--mono);background:var(--paper);border:1px solid var(--rule);padding:8px;margin:6px 0 0}
+.stage details{margin-top:4px}
+.stage .who{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;padding:0 6px;border-radius:3px;margin-left:6px;background:var(--panel);border:1px solid var(--rule)}
+.stage .who.code{color:var(--ok)} .stage .who.ai{color:var(--fact)}
+@media (prefers-reduced-motion:no-preference){.stage{animation:fi .35s ease both}@keyframes fi{from{opacity:0;transform:translateY(4px)}}}
+
 .kind{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:0 5px;margin-right:6px;color:var(--muted)}
 
 </style>
@@ -264,12 +280,67 @@ function renderSide(inc, rec, recd){
   s.append(tb);
 }
 
+const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+function stage(trace,title,who,state,body){
+  const d=el("div","stage "+state); const t=el("div","st",title); if(who){t.append(el("span","who "+(who==="AI"?"ai":"code"),who==="AI"?"Gemini":"Deterministic code"));}
+  d.append(t); if(body) d.append(body); trace.append(d); return d;}
+function setState(d,state,body){ d.className="stage "+state; if(body){ d.querySelector(".sd")?.remove(); d.append(body);} }
+function line(html){ const d=el("div","sd"); html.forEach(x=>{ if(typeof x==="string") d.append(document.createTextNode(x)); else d.append(x);}); return d; }
+function bold(t){return el("b",null,t);}
+
 async function run(mode, btns, btn){
-  const out=$("result"); const w=el("div","small"); w.append(el("span","spin"),document.createTextNode("Working\u2026 live Gemini calls take a few seconds")); out.replaceChildren(w);
+  const out=$("result"); out.replaceChildren();
+  const trace=el("div","trace"); const res=el("div");
+  out.append(el("h3",null,"Behind the scenes"), trace, res);
   btns.querySelectorAll("button").forEach(b=>b.disabled=true);
-  try{ const r=await api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})});
-    out.replaceChildren(renderResult(mode,r));
-  }catch(e){ out.replaceChildren(el("div","card contra err","Could not run: "+e.message)); }
+  const pace=window.matchMedia("(prefers-reduced-motion: reduce)").matches?0:380;
+  try{
+    const needLLM = mode!=="deterministic";
+    const p = await api("/api/incidents/"+current+"/pipeline?mode="+(needLLM?mode:"reconciled"));
+    const callP = needLLM ? api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})}).catch(e=>({__err:e.message}))
+                          : api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})}).catch(e=>({__err:e.message}));
+
+    stage(trace,"1. Load the evidence ledger","code","done",line([bold(p.ledger.total+" records")," from ",bold(p.ledger.sources.join(", ")),". Each keeps when it happened and when we received it."])); await sleep(pace);
+    const g=p.time_gate; const ex=g.excluded_late_or_future;
+    stage(trace,"2. Cut the ledger at the incident time","code",ex.length?"warn":"done",
+      line([bold(g.visible_contemporaneous+" of "+p.ledger.total)," records were known at ",new Date(g.as_of).toUTCString().slice(17,25)+" UTC. ",
+        ex.length?("Held back as not yet received: "+ex.join(", ")+"."):"Nothing arrived late."])); await sleep(pace);
+    const r=p.reconstruction; const cnt={}; r.changes.forEach(c=>cnt[c.status]=(cnt[c.status]||0)+1);
+    const d3=stage(trace,"3. Rebuild what was live at that moment","code","done",
+      line([ "Using ",bold(({dag:"the commit graph",linear_assumed:"an assumed linear history",unsupported:"no usable history"})[r.history_model]||r.history_model),": ",
+        Object.entries(cnt).map(([k,v])=>v+" "+k.replace("_"," ").toLowerCase()).join(", ")||"no changes","."]));
+    const ul=el("div","sd"); r.changes.forEach(c=>{const row=el("div"); row.append(citeBtn(c.id)); row.append(document.createTextNode("  "));
+      row.append(el("span","chip c-"+c.status,c.status.replace("_"," "))); ul.append(row);}); d3.append(ul); await sleep(pace);
+    const x=p.cross_check; const bad=x.contradictions.length||x.missing_evidence.length;
+    stage(trace,"4. Cross-check sources against each other","code",bad?"warn":"done",
+      line([x.contradictions.length?bold(x.contradictions.length+" contradiction"+(x.contradictions.length>1?"s":"")+" found"):"No contradictions. ",
+        x.contradictions.length?(" ("+x.contradictions.map(c=>c.type.replace(/_/g," ")).join("; ")+"). Affected changes become UNKNOWN rather than guessed. "):"",
+        x.missing_evidence.length?("Missing: "+x.missing_evidence[0]):"" ])); await sleep(pace);
+    if(x.differences_when_late_records_counted.length){
+      stage(trace,"   Then compare with the later, fuller picture","code","warn",
+        line([bold(x.differences_when_late_records_counted.length+" change(s)")," look different once late records are counted, e.g. ",x.differences_when_late_records_counted[0].change_id.split(":").pop()," is ",
+          x.differences_when_late_records_counted[0].contemporaneous.replace("_"," ")," at the time but ",x.differences_when_late_records_counted[0].retrospective.replace("_"," ")," later. The investigator may only use the first."])); await sleep(pace);}
+
+    if(!needLLM){
+      stage(trace,"5. Decide","code","done",line(["The deterministic engine answers from the statuses above. No model is involved."]));
+      const r2=await callP; if(r2.__err) throw new Error(r2.__err);
+      res.replaceChildren(renderResult(mode,r2)); return;
+    }
+    const pr=p.prompt; const d5=stage(trace,"5. Build the prompt Gemini receives","code","done",
+      line(["Mode: ",bold(mode==="raw"?"raw evidence only":"evidence + the reconstruction above"),". ",bold(pr.user_chars+" characters")," of evidence, passed as escaped JSON so commit text cannot forge structure. The model never sees ground truth."]));
+    const det=el("details"); det.append(el("summary",null,"Show the exact prompt")); det.append(el("pre",null,"SYSTEM:\n"+pr.system+"\n\nUSER:\n"+pr.user+(pr.user_truncated?"\n[truncated for display]":""))); d5.append(det); await sleep(pace);
+    const d6=stage(trace,"6. Gemini reasons and must cite record IDs","AI","run",line(["Calling the model\u2026 it may abstain."]));
+    const r2=await callP;
+    if(r2.__err){ setState(d6,"bad",line(["Call failed: "+r2.__err])); return; }
+    if(r2.error){ setState(d6,"bad",line([r2.error])); res.replaceChildren(renderResult(mode,r2)); return; }
+    setState(d6,"done",line(["Returned in ",bold((r2.latency_s||0).toFixed(1)+"s"),", "+(r2.prompt_tokens||0)+" in / "+(r2.output_tokens||0)+" out tokens"+(r2.cached?" (served from cache, not a fresh call)":"")+"."]));
+    await sleep(pace);
+    const fl=(r2.flags||[]), wa=(r2.warnings||[]);
+    stage(trace,"7. Admissibility checks on the answer","code",fl.length?"bad":(wa.length?"warn":"done"),
+      line([fl.length?bold("Rejected: "+fl.map(f=>f.replace(/_/g," ")).join(", ")+". "):"Citations exist, are time-valid and fit the rebuilt state. ",wa.length?("Warnings: "+wa.map(w=>w.replace(/_/g," ")).join(", ")+". "):"","This does not prove the cause."])); await sleep(pace);
+    stage(trace,"8. Report","code",r2.abstained?"warn":"done",line([r2.abstained?bold("Abstained"):bold("Probable cause: "+r2.cause_id)]));
+    res.replaceChildren(renderResult(mode,r2));
+  }catch(e){ res.replaceChildren(el("div","card contra err","Could not run: "+e.message)); }
   finally{ btns.querySelectorAll("button").forEach(b=>b.disabled=false); }
 }
 

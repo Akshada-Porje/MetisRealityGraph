@@ -1,0 +1,9 @@
+Scenario set v1 (16 scenarios)
+
+system             valid     pct
+naive          10/   16   62.5%
+metis          16/   16  100.0%
+
+Naive always picks rollback_latest_commit (R2Act straw-man).
+Metis picks a state-defined action from the reconciled view.
+Validity = action is defined for the reconstructed state; it does NOT mean the action will fix the incident.

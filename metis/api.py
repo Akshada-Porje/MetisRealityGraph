@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from .investigate import build_prompt, investigate
 from .llm import GeminiClient, LLMError
 from .reconcile import compare_views, reconcile, visible
+from .actions import Action, is_valid, metis_recommend, naive_recommend, score as score_action
 from .scenarios import generate
 from .systems import r2_reconcile
 
@@ -121,11 +122,19 @@ def incident(incident_id: str):
 
 
 @app.get("/api/incidents/{incident_id}/reconciliation")
-def reconciliation(incident_id: str):
+def reconciliation(incident_id: str, as_of: str | None = None):
     """`changes` etc. describe the contemporaneous view (what an investigator at the time could know).
-    `retrospective` and `view_differences` show what changes once late-arriving records are counted."""
+    `retrospective` and `view_differences` show what changes once late-arriving records are counted.
+    Pass `as_of` (ISO-8601) to re-run the reconciliation at a different point in time (time-travel)."""
     sc = _get(incident_id)
-    both = compare_views(sc.evidence, sc.service, sc.incident_time)
+    tgt = sc.incident_time
+    if as_of:
+        try:
+            tgt = datetime.fromisoformat(as_of.replace("Z", "+00:00"))
+            if tgt.tzinfo is None: tgt = tgt.replace(tzinfo=timezone.utc)
+        except Exception:
+            raise HTTPException(422, "as_of must be ISO-8601")
+    both = compare_views(sc.evidence, sc.service, tgt)
     out = jsonable_encoder(both["contemporaneous"])
     out["retrospective"] = {"statuses": {c.id: c.status.value for c in both["retrospective"].changes},
                             "basis": both["retrospective"].basis, "confidence": both["retrospective"].confidence}
@@ -158,6 +167,41 @@ def pipeline(incident_id: str, mode: Literal["raw", "reconciled"] = "reconciled"
                    "includes_reconciliation": mode == "reconciled",
                    "system": system[:cap], "user": user[:cap], "user_truncated": len(user) > cap},
     }
+
+
+@app.get("/api/incidents/{incident_id}/recovery")
+def recovery(incident_id: str):
+    """Recovery-action recommendation and state-validity for naive and Metis.
+    See metis.actions for how validity is defined. This never executes anything."""
+    sc = _get(incident_id)
+    nm, mm = naive_recommend(sc), metis_recommend(sc)
+    nr, mr = score_action(sc, nm), score_action(sc, mm)
+    return {"scenario": incident_id, "type": sc.type,
+            "action_space": [a.value for a in Action],
+            "naive": {"action": nr.action.value, "valid": nr.validity.valid, "why": nr.validity.why},
+            "metis": {"action": mr.action.value, "valid": mr.validity.valid, "why": mr.validity.why},
+            "note": "A valid action is one defined for the reconstructed state. Validity does not mean the action will fix the incident."}
+
+
+@app.get("/api/recovery_summary")
+def recovery_summary(version: str = "v2"):
+    """Across the active scenario set, how often each system picks a state-valid action."""
+    if version not in ("v1", "v2"):
+        raise HTTPException(422, "version must be v1 or v2")
+    from .scenarios import generate as _gen
+    scs = _gen(2, 7, version)
+    naive = {"total": 0, "valid": 0, "by_action": {}}; metis = {"total": 0, "valid": 0, "by_action": {}}
+    rows = []
+    for sc in scs:
+        nm, mm = naive_recommend(sc), metis_recommend(sc)
+        nr, mr = score_action(sc, nm), score_action(sc, mm)
+        for d, r in ((naive, nr), (metis, mr)):
+            d["total"] += 1; d["valid"] += int(r.validity.valid)
+            d["by_action"][r.action.value] = d["by_action"].get(r.action.value, 0) + 1
+        rows.append({"id": sc.id, "type": sc.type, "naive_valid": nr.validity.valid,
+                     "metis_action": mr.action.value, "metis_valid": mr.validity.valid})
+    return {"scenario_version": version, "naive": naive, "metis": metis, "rows": rows,
+            "note": "Scenarios and ground truth are team-written; small sample; validity != incident resolution."}
 
 
 class InvestigateReq(BaseModel):

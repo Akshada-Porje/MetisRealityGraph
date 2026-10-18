@@ -400,3 +400,45 @@ def test_pipeline_trace_matches_engine_and_exposes_exact_prompt():
     assert not raw["prompt"]["includes_reconciliation"] and "<reconciliation_json>" not in raw["prompt"]["user"]
     assert c.get("/api/incidents/late-0/pipeline?mode=bogus").status_code == 422
     assert c.get("/api/incidents/nope/pipeline").status_code == 404
+
+
+# ---------------------------------------------------------------- Recovery-action validity (R2Act gap)
+def test_recovery_metis_valid_on_every_v2_scenario():
+    from metis.actions import metis_recommend, score
+    from metis.scenarios import generate
+    bad = [sc.type for sc in generate(2, 7, "v2") if not score(sc, metis_recommend(sc)).validity.valid]
+    assert not bad, f"Metis picked a non-state-valid action on {bad}"
+
+
+def test_recovery_naive_fails_on_the_tricky_cases():
+    from metis.actions import naive_recommend, score
+    from metis.scenarios import generate
+    invalid_types = {sc.type for sc in generate(1, 7, "v2")
+                     if not score(sc, naive_recommend(sc)).validity.valid}
+    # It must fail on the specific R2Act-style traps:
+    assert {"late_deploy_event", "conflict_unresolvable", "insufficient_evidence",
+            "revert_unknown", "partial_rollout", "late_record_no_probe"} <= invalid_types
+
+
+def test_recovery_api_shapes():
+    from fastapi.testclient import TestClient
+    c = TestClient(api.app)
+    r = c.get("/api/incidents/undeployed-0/recovery").json()
+    assert r["metis"]["action"] == "deploy_pending_change" and r["metis"]["valid"]
+    assert r["naive"]["action"] == "rollback_latest_commit"
+    s = c.get("/api/recovery_summary?version=v2").json()
+    assert s["metis"]["valid"] == 32 and s["metis"]["total"] == 32 and s["naive"]["valid"] < 32
+    assert c.get("/api/recovery_summary?version=bogus").status_code == 422
+
+
+def test_recovery_validity_matches_r2act_invalid_action_range_on_our_set():
+    """R2Act reports 39.5% to 62% invalid-action rate on correctly diagnosed k8s incidents.
+    Our naive baseline's invalid rate on this scenario set should land in that neighborhood,
+    which is what makes the comparison informative."""
+    from metis.actions import naive_recommend, score
+    from metis.scenarios import generate
+    for v in ("v1", "v2"):
+        scs = generate(2, 7, v)
+        invalid = sum(1 for sc in scs if not score(sc, naive_recommend(sc)).validity.valid)
+        pct = 100 * invalid / len(scs)
+        assert 35 <= pct <= 65, f"{v}: naive invalid={pct}% (want 35-65%)"

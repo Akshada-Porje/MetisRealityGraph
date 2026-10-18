@@ -18,7 +18,7 @@ A temporal evidence engine that reconstructs system state at incident time, dete
 
 **Verdict on our benchmark:** not shown. The baseline also made zero wrong or unsupported claims. What changed was over-abstention (5 missed answers down to 0). We did **not** measure recovery-action validity, which is the R2Act question; that is our main future test.
 
-**Live demo:** see the Cloud Run URL in the submission form (add it here once confirmed)
+**Live demo:** https://metis-805035413326.asia-south1.run.app
 **Synthetic data only. Read-only. Nothing is ever executed.**
 
 ## How it works

@@ -73,12 +73,55 @@ th{font-weight:600;color:var(--muted)}
 details{margin-top:14px} summary{cursor:pointer;font-weight:600}
 .recorded{margin:24px 0 8px;padding-top:14px;border-top:1px solid var(--rule)}
 @media (prefers-reduced-motion:no-preference){.ev{transition:background .3s}}
+header{position:sticky;top:0;z-index:5;background:var(--paper)}
+.badge{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:10px;background:var(--panel);border:1px solid var(--rule);color:var(--muted)}
+.demo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%;margin-top:4px}
+.demo .lbl{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.demo button{border:1px solid var(--fact);color:var(--fact);background:transparent;border-radius:16px;padding:4px 12px;font-size:13px}
+.demo button:hover{background:var(--fact);color:var(--panel)}
+.demo .legend{margin-left:auto}
+.demo .legend summary{font-weight:500;font-size:13px;color:var(--muted)}
+.legendbox{position:absolute;right:24px;top:100%;background:var(--panel);border:1px solid var(--rule);padding:10px 14px;border-radius:4px;box-shadow:0 6px 20px rgba(0,0,0,.15);max-width:420px;font-size:13px}
+.legendbox div{margin:4px 0}
+nav{padding-top:8px}
+nav .grp{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 10px 4px}
+nav .s{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
+@media (max-width:1100px){aside{position:static;max-height:none}}
+.glance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.glance div{border:1px solid var(--rule);border-radius:4px;padding:8px;text-align:center;background:var(--paper)}
+.glance b{display:block;font:700 22px var(--serif)}
+.glance span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.headline{font:600 16px var(--serif);margin:6px 0}
+.btns button.primary{background:var(--fact);border-color:var(--fact);color:#fff;font-weight:600}
+.btns button.primary:hover:not(:disabled){background:var(--ink);border-color:var(--ink)}
+.btns button small{display:block;font-weight:400;opacity:.85;font-size:12px}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--rule);border-top-color:var(--fact);border-radius:50%;margin-right:6px;vertical-align:-2px;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.banner{border-radius:4px;padding:12px 14px;margin:8px 0;color:#fff;font:600 17px var(--serif)}
+.banner.v{background:var(--fact)} .banner.a{background:var(--warn)} .banner.x{background:var(--bad)}
+.banner small{display:block;font:400 13px var(--sans);opacity:.92;margin-top:2px}
+.ev.hl{box-shadow:inset 3px 0 0 var(--bad)}
+.kind{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.06em;background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:0 5px;margin-right:6px;color:var(--muted)}
+
 </style>
 </head>
 <body>
 <header>
   <h1>Metis</h1><span class="tag">Practical Intelligence. Engineered.</span>
+  <span class="badge">Synthetic data</span><span class="badge">Read-only</span>
   <span class="note" id="status">Synthetic incidents only. Read-only: nothing here changes any system.</span>
+  <div class="demo" id="demo"><span class="lbl">Guided demo</span>
+    <button data-go="undeployed-0">1 &middot; A fix that never shipped</button>
+    <button data-go="conflict-0">2 &middot; Records that disagree</button>
+    <button data-go="late-0">3 &middot; A late-arriving record</button>
+    <button data-go="injected-0">4 &middot; Hostile commit message</button>
+    <details class="legend"><summary>How to read this</summary><div class="legendbox">
+      <div><b>Left:</b> every incident. <b>Middle:</b> raw evidence in time order (facts only).</div>
+      <div><b>Right:</b> what the deterministic engine concludes, then what Gemini says.</div>
+      <div><span class="chip c-DEPLOYED">DEPLOYED</span> positive evidence it was live &nbsp;<span class="chip c-NOT_DEPLOYED">NOT DEPLOYED</span> positive evidence it was not</div>
+      <div><span class="chip c-UNKNOWN">UNKNOWN</span> evidence missing, late or contradictory</div>
+      <div>Hatched rows reached the ledger after the incident. Click any blue ID to jump to its record.</div></div></details></div>
 </header>
 <div class="layout">
   <nav id="list" aria-label="Incidents"></nav>
@@ -127,9 +170,17 @@ async function init(){
       (h.llm_configured?"Live Gemini is available (capped).":"Live Gemini is off; recorded results and the deterministic engine still work.");
   }catch(e){}
   const list=await api("/api/incidents"), nav=$("list");
-  list.forEach(i=>{const b=el("button"); b.dataset.id=i.id;
+  const GROUP={undeployed_fix:"Core cases",late_deploy_event:"Core cases",conflict_unresolvable:"Core cases",conflict_resolvable:"Core cases",
+    config_without_deploy:"Core cases",insufficient_evidence:"Core cases",unrelated_recent_change:"Core cases",injected_commit_message:"Adversarial"};
+  let lastG=null;
+  list.forEach(i=>{const g=GROUP[i.type]||"Git history and rollouts"; if(g!==lastG){nav.append(el("div","grp",g)); lastG=g;}
+    const b=el("button"); b.dataset.id=i.id;
     b.append(el("div","t",LABEL[i.type]||i.type), el("div","s",i.id+": "+i.symptom));
     b.addEventListener("click",()=>select(i.id)); nav.append(b);});
+  document.querySelectorAll("#demo button[data-go]").forEach(b=>{ if(!list.some(i=>i.id===b.dataset.go)) b.remove(); else b.addEventListener("click",()=>select(b.dataset.go));});
+  document.addEventListener("keydown",e=>{ if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+    if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return; const k=list.findIndex(i=>i.id===current); if(k<0)return;
+    const n=list[Math.max(0,Math.min(list.length-1,k+(e.key==="ArrowDown"?1:-1)))]; if(n&&n.id!==current){e.preventDefault(); select(n.id);}});
   if(list.length) select(list[0].id);
 }
 
@@ -139,7 +190,9 @@ async function select(id){
   const [inc, rec, recd] = await Promise.all([api("/api/incidents/"+id), api("/api/incidents/"+id+"/reconciliation"),
     api("/api/incidents/"+id+"/recorded").catch(()=>({rows:[]}))]);
   incidentTime=new Date(inc.incident_time);
+  const cur=document.querySelector('#list button[aria-current="true"]'); if(cur) cur.scrollIntoView({block:"nearest"});
   renderLedger(inc); renderSide(inc, rec, recd);
+  $("main").scrollTo?.(0,0); window.scrollTo({top:0});
 }
 
 function renderLedger(inc){
@@ -151,7 +204,8 @@ function renderLedger(inc){
     const li=el("li","ev s-"+e.source+(e.visible_at_incident?"":" late")); li.dataset.id=e.id;
     const [what,detail]=summarise(e);
     li.append(el("span","tm",rel(e.event_time)), el("div","what",what), el("div","detail",detail||""),
-      el("div","src",e.source+" / "+e.kind));
+      el("div","src",e.source));
+    li.firstChild.after(el("span","kind",e.kind.replace("_"," ")));
     if(!e.visible_at_incident) li.append(el("div","lt","Ingested "+rel(e.ingest_time)+": invisible to the investigation"));
     li.append(el("div","id",e.id)); ol.append(li);
   });
@@ -170,11 +224,16 @@ function renderSide(inc, rec, recd){
   const s=$("side"); s.replaceChildren();
   s.append(el("h2",null,"Investigation"));
   const btns=el("div","btns");
-  [["deterministic","Reconcile only (no AI, free)"],["raw","Ask Gemini: raw evidence"],["reconciled","Ask Gemini: reconciled + admissibility checks"]].forEach(([mode,label])=>{
-    const b=el("button",null,label); b.addEventListener("click",()=>run(mode,btns,b)); btns.append(b);});
+  [["deterministic","Reconcile only","No AI, instant, free",false],["raw","Ask Gemini: raw evidence","Model sees the records, no reconstruction",false],["reconciled","Ask Gemini: reconciled","Model sees reconstructed state, answer is checked",true]].forEach(([mode,label,sub,prim])=>{
+    const b=el("button",prim?"primary":null,label); b.append(el("small",null,sub)); b.addEventListener("click",()=>run(mode,btns,b)); btns.append(b);});
   s.append(btns, el("div","small","Gemini calls are capped per day to protect a free quota. Recorded results below always work."));
   s.append(el("div",null)); s.lastChild.id="result";
 
+  const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0}; rec.changes.forEach(c=>{if(c.status in cnt)cnt[c.status]++;});
+  const hd=rec.contradictions.length?"Records disagree: some changes cannot be placed":
+    (rec.changes.length&&cnt.UNKNOWN===rec.changes.length?"Not enough evidence to say what was live":"What was live is established");
+  s.append(el("div","headline",hd));
+  const g=el("div","glance"); [["DEPLOYED","Live"],["NOT_DEPLOYED","Not live"],["UNKNOWN","Unknown"]].forEach(([k,l])=>{const d=el("div"); const b=el("b",null,String(cnt[k])); b.className="c-"+k; d.append(b,el("span",null,l)); g.append(d);}); s.append(g);
   s.append(el("h3",null,"Derived: what was live (deterministic)"));
   const live=el("div","card"); live.append(el("div","k","Live version"));
   live.append(el("div",null,(rec.active_digests.length?rec.active_digests.join(" or "):"Cannot be established")+"  ["+rec.confidence+" confidence]"));
@@ -206,7 +265,7 @@ function renderSide(inc, rec, recd){
 }
 
 async function run(mode, btns, btn){
-  const out=$("result"); out.replaceChildren(el("div","small","Working\u2026"));
+  const out=$("result"); const w=el("div","small"); w.append(el("span","spin"),document.createTextNode("Working\u2026 live Gemini calls take a few seconds")); out.replaceChildren(w);
   btns.querySelectorAll("button").forEach(b=>b.disabled=true);
   try{ const r=await api("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incident_id:current,mode})});
     out.replaceChildren(renderResult(mode,r));
@@ -218,6 +277,10 @@ function renderResult(mode,r){
   const wrap=el("div"); wrap.append(el("h3",null,"Hypothesis: "+(mode==="deterministic"?"deterministic engine":MODE[mode])));
   if(r.error){ wrap.append(el("div","card contra err","Model call failed: "+r.error)); return wrap; }
   const o=r.output||{}; const abst=r.abstained;
+  const bn=el("div","banner "+(abst?"a":"v"),abst?"Abstained: insufficient evidence":"Probable cause identified");
+  bn.append(el("small",null,abst?"No cause asserted. See what evidence would settle it below.":"Cited from the ledger. Click the ID to see the record."));
+  if(r.flags&&r.flags.length){bn.className="banner x"; bn.firstChild.textContent="Answer rejected by admissibility checks";}
+  wrap.append(bn);
   const v=el("div","card "+(abst?"abstain":"verdict"));
   v.append(el("div","k",abst?"Verdict: insufficient evidence, no cause asserted":"Verdict: probable cause"));
   if(!abst) v.append(citeBtn(r.cause_id));

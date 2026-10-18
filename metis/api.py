@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from typing import Literal
@@ -29,16 +29,18 @@ app = FastAPI(title="Metis", version="0.2.0",
 
 
 def _scenario_version() -> str:
-    """Show the same scenario set that the recorded results were produced on (results meta), else v1."""
+    """Default to v2 (16 scenario types) so the UI shows the full set, including the adversarial
+    cases added for the independent-review fixes. Honour METIS_SCENARIO_VERSION, or the meta
+    inside a recorded-results file (so the Recorded Benchmark widget matches)."""
     v = os.environ.get("METIS_SCENARIO_VERSION")
     if v in ("v1", "v2"):
         return v
     try:
         path = Path(os.environ.get("METIS_RESULTS", "data/results.json"))
         meta = json.loads(path.read_text()).get("meta", {}) if path.exists() else {}
-        return meta.get("scenario_version") if meta.get("scenario_version") in ("v1", "v2") else "v1"
+        return meta.get("scenario_version") if meta.get("scenario_version") in ("v1", "v2") else "v2"
     except (OSError, ValueError):
-        return "v1"
+        return "v2"
 
 
 SCENARIO_VERSION = _scenario_version()
@@ -202,6 +204,73 @@ def recovery_summary(version: str = "v2"):
                      "metis_action": mr.action.value, "metis_valid": mr.validity.valid})
     return {"scenario_version": version, "naive": naive, "metis": metis, "rows": rows,
             "note": "Scenarios and ground truth are team-written; small sample; validity != incident resolution."}
+
+
+# ---------- Live custom-incident composer ----------
+class CustomEvidence(BaseModel):
+    source: Literal["git", "ci", "deploy_log", "orchestrator", "runtime", "k8s_audit"]
+    kind: Literal["commit", "build", "deploy", "rollout", "runtime_version", "config_change"]
+    minutes_before_incident: float = Field(ge=-1440, le=100000)
+    ingest_delay_minutes: float = Field(default=1, ge=0, le=100000)
+    data: dict = Field(default_factory=dict, max_length=20)
+
+
+class CustomIncidentReq(BaseModel):
+    symptom: str = Field(min_length=1, max_length=400)
+    service: str = Field(default="payments", min_length=1, max_length=64)
+    implicated: list[str] = Field(default_factory=list, max_length=10)
+    evidence: list[CustomEvidence] = Field(min_length=1, max_length=30)
+    ask_gemini: bool = False
+
+
+def _build_custom(req: CustomIncidentReq):
+    """Build a Scenario from user input; truth is unknown so answerable=False."""
+    from .models import Evidence, Scenario, Truth
+    tnow = datetime.now(timezone.utc).replace(microsecond=0)
+    evs = []
+    for i, e in enumerate(req.evidence):
+        et = tnow - timedelta(minutes=float(e.minutes_before_incident))
+        it = et + timedelta(minutes=float(e.ingest_delay_minutes))
+        # Hard-limit the data dict depth and sizes
+        data = {str(k)[:40]: (str(v)[:200] if not isinstance(v, (int, float, bool, list)) else v) for k, v in list(e.data.items())[:16]}
+        evs.append(Evidence(f"custom-{i}:{e.kind}:{data.get('sha', data.get('key', 'rec'))[:30]}",
+                            e.source, e.kind, req.service, et, it, data))
+    truth = Truth(cause_id=None, answerable=False, commit_deployed={})
+    return Scenario(id="custom-"+tnow.strftime("%H%M%S"), type="custom", service=req.service,
+                    incident_time=tnow, implicated=req.implicated[:10], symptom=req.symptom,
+                    evidence=evs, truth=truth)
+
+
+@app.post("/api/custom/analyze")
+def analyze_custom(req: CustomIncidentReq):
+    """Build a scenario from user-supplied evidence and run the full pipeline on it.
+    Nothing is executed. The model is called only if ask_gemini=true and the key is set."""
+    from .actions import metis_recommend, naive_recommend
+    from .actions import score as score_action
+    sc = _build_custom(req)
+    rec_c = reconcile(sc.evidence, sc.service, sc.incident_time)
+    rec_both = compare_views(sc.evidence, sc.service, sc.incident_time)
+    nm, mm = naive_recommend(sc), metis_recommend(sc)
+    nr, mr = score_action(sc, nm), score_action(sc, mm)
+    out = {
+        "scenario": {"id": sc.id, "symptom": sc.symptom, "service": sc.service,
+                     "incident_time": sc.incident_time.isoformat(), "n_events": len(sc.evidence)},
+        "reconciliation": jsonable_encoder(rec_c),
+        "retrospective_differences": rec_both["differences"],
+        "recovery": {"naive": {"action": nr.action.value, "valid": nr.validity.valid, "why": nr.validity.why},
+                     "metis": {"action": mr.action.value, "valid": mr.validity.valid, "why": mr.validity.why}},
+    }
+    if req.ask_gemini:
+        try:
+            _spend_live_call(); client = _llm()
+            inv = investigate(sc, client, "reconciled")
+            out["gemini"] = jsonable_encoder(inv)
+        except HTTPException as he:
+            out["gemini_error"] = he.detail
+        except Exception as e:
+            log.warning("custom investigation failed: %s", str(e)[:400])
+            out["gemini_error"] = "The model call failed."
+    return out
 
 
 class InvestigateReq(BaseModel):

@@ -324,10 +324,11 @@ def test_f6_model_output_is_size_bounded_before_display():
 
 
 # ---------------------------------------------------------------- F7: recommendations are advisory and unscored
-def test_f7_only_one_mutating_route_and_it_executes_nothing():
-    posts = [(r.path, r.methods) for r in api.app.routes if hasattr(r, "methods") and "POST" in r.methods]
-    assert posts == [("/api/investigate", {"POST"})]
+def test_f7_only_safe_post_routes_and_nothing_executes():
+    posts = sorted((r.path, r.methods) for r in api.app.routes if hasattr(r, "methods") and "POST" in r.methods)
+    assert posts == [("/api/custom/analyze", {"POST"}), ("/api/investigate", {"POST"})]
     assert not [r for r in api.app.routes if hasattr(r, "methods") and (r.methods & {"PUT", "DELETE", "PATCH"})]
+    # The custom-analyze path never calls Gemini unless ask_gemini=True, and never executes anything.
 
 
 def test_f7_benchmark_outcome_ignores_suggested_actions():
@@ -373,8 +374,10 @@ def test_f9_scenario_version_follows_the_recorded_results(tmp_path, monkeypatch)
     monkeypatch.setenv("METIS_RESULTS", str(p))
     monkeypatch.delenv("METIS_SCENARIO_VERSION", raising=False)
     assert api._scenario_version() == "v2"
-    p.write_text(json.dumps({"model": "m", "rows": []}))
+    p.write_text(json.dumps({"model": "m", "meta": {"scenario_version": "v1"}, "rows": []}))
     assert api._scenario_version() == "v1"
+    p.write_text(json.dumps({"model": "m", "rows": []}))     # no meta -> default v2 (full scenario set)
+    assert api._scenario_version() == "v2"
 
 
 def test_f9_reconciliation_endpoint_exposes_both_views():
@@ -442,3 +445,38 @@ def test_recovery_validity_matches_r2act_invalid_action_range_on_our_set():
         invalid = sum(1 for sc in scs if not score(sc, naive_recommend(sc)).validity.valid)
         pct = 100 * invalid / len(scs)
         assert 35 <= pct <= 65, f"{v}: naive invalid={pct}% (want 35-65%)"
+
+
+# ---------------------------------------------------------------- Custom-incident composer
+def test_custom_analyze_runs_pipeline_without_gemini():
+    from fastapi.testclient import TestClient
+    c = TestClient(api.app)
+    body = {
+        "symptom": "cart totals off by one cent", "service": "payments",
+        "evidence": [
+            {"source": "git", "kind": "commit", "minutes_before_incident": 60, "ingest_delay_minutes": 1,
+             "data": {"sha": "A", "touches": ["pricing.py"], "message": "fix rounding"}},
+            {"source": "ci", "kind": "build", "minutes_before_incident": 50, "ingest_delay_minutes": 1,
+             "data": {"sha": "A", "digest": "dA"}},
+            {"source": "deploy_log", "kind": "deploy", "minutes_before_incident": 40, "ingest_delay_minutes": 1,
+             "data": {"deploy_id": "d1", "digest": "dA", "status": "success"}},
+        ],
+        "ask_gemini": False,
+    }
+    r = c.post("/api/custom/analyze", json=body).json()
+    assert r["scenario"]["n_events"] == 3
+    assert r["recovery"]["metis"]["valid"] in (True, False)
+    assert "gemini" not in r
+
+
+def test_custom_analyze_input_validation():
+    from fastapi.testclient import TestClient
+    c = TestClient(api.app)
+    # Empty evidence -> 422
+    assert c.post("/api/custom/analyze", json={"symptom": "x", "evidence": []}).status_code == 422
+    # Too long symptom -> 422
+    assert c.post("/api/custom/analyze", json={"symptom": "x" * 500,
+                                                "evidence": [{"source":"git","kind":"commit","minutes_before_incident":1,"data":{}}]}).status_code == 422
+    # Unknown source -> 422 (prevents forging record types)
+    assert c.post("/api/custom/analyze", json={"symptom": "x",
+                                                "evidence": [{"source":"evil","kind":"commit","minutes_before_incident":1,"data":{}}]}).status_code == 422

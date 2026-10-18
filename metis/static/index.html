@@ -131,7 +131,37 @@ aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
 .recov .foot{padding:8px 12px;background:var(--panel);font-size:12px;color:var(--muted);border-top:1px solid var(--rule)}
 .tt{display:flex;align-items:center;gap:6px;margin:6px 0 10px;font-size:13px;flex-wrap:wrap}
 .tt button{border:1px solid var(--rule);background:var(--panel);padding:3px 10px;border-radius:14px;font-size:12px}
+
 .tt button[aria-current=true]{background:var(--fact);color:#fff;border-color:var(--fact)}
+.compose-btn{background:var(--fact);color:#fff;border:1px solid var(--fact);padding:4px 12px;border-radius:14px;font-weight:600;font-size:13px}
+.compose-btn:hover{background:var(--ink);border-color:var(--ink)}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center;padding:16px}
+#modal.open{display:flex}
+#modal .mbox{background:var(--paper);border-radius:6px;max-width:960px;width:100%;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+#modal .mhead{padding:14px 20px;border-bottom:1px solid var(--rule);display:flex;align-items:baseline;gap:12px}
+#modal .mhead h2{margin:0;font-size:22px}
+#modal .mhead .close{margin-left:auto;background:none;border:0;font-size:24px;color:var(--muted);padding:0 4px}
+#modal .mbody{padding:16px 20px;overflow:auto;flex:1}
+#modal .mcols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:900px){#modal .mcols{grid-template-columns:1fr}}
+#modal label{display:block;font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
+#modal input, #modal select, #modal textarea{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:3px;padding:6px 8px;font:14px var(--sans)}
+#modal textarea{font:12px var(--mono);min-height:60px;resize:vertical}
+#modal .mfoot{padding:12px 20px;border-top:1px solid var(--rule);display:flex;gap:10px;align-items:center;background:var(--panel)}
+#modal .mfoot button.go{background:var(--fact);color:#fff;border:1px solid var(--fact);padding:7px 18px;border-radius:3px;font-weight:600}
+#modal .mfoot button.go:disabled{opacity:.5}
+#modal .evlist{border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin:4px 0}
+#modal .evrow{display:grid;grid-template-columns:70px 90px 60px auto 24px;gap:6px;padding:6px 8px;border-bottom:1px solid var(--rule);align-items:center;font-size:12px}
+#modal .evrow:last-child{border-bottom:0}
+#modal .evrow select, #modal .evrow input{padding:3px 5px;font-size:12px}
+#modal .evrow button{background:none;border:0;color:var(--bad);font-size:16px}
+#modal .pb{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+#modal .pb button{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:3px 10px;font-size:12px;color:var(--ink)}
+#modal .pb button:hover{background:var(--ink);color:var(--paper)}
+#modal .results{margin-top:8px}
+#modal .preset{margin:4px 0 12px;font-size:12px;color:var(--muted)}
+#modal .preset button{background:none;border:0;color:var(--fact);text-decoration:underline;padding:0 4px;font:inherit}
+
 
 @media (prefers-reduced-motion:no-preference){.stage{animation:fi .35s ease both}@keyframes fi{from{opacity:0;transform:translateY(4px)}}}
 
@@ -149,6 +179,7 @@ aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
     <button data-go="conflict-0">2 &middot; Records that disagree</button>
     <button data-go="late-0">3 &middot; A late-arriving record</button>
     <button data-go="injected-0">4 &middot; Hostile commit message</button>
+    <button class="compose-btn" id="composeBtn" title="Build your own incident">+ Build an incident</button>
     <details class="legend"><summary>How to read this</summary><div class="legendbox">
       <div><b>Left:</b> every incident. <b>Middle:</b> raw evidence in time order (facts only).</div>
       <div><b>Right:</b> what the deterministic engine concludes, then what Gemini says.</div>
@@ -160,6 +191,48 @@ aside{position:sticky;top:96px;max-height:calc(100vh - 96px);align-self:start}
   <nav id="list" aria-label="Incidents"></nav>
   <main id="main"><p class="sub">Pick an incident on the left.</p></main>
   <aside id="side" aria-live="polite"></aside>
+</div>
+<div id="modal" role="dialog" aria-labelledby="mtitle" aria-modal="true">
+  <div class="mbox">
+    <div class="mhead"><h2 id="mtitle">Build your own incident</h2>
+      <span class="small">Compose evidence, then run the full pipeline live. Nothing is executed.</span>
+      <button class="close" aria-label="Close">×</button></div>
+    <div class="mbody">
+      <div class="preset">Start from a preset:
+        <button data-preset="undeployed">Undeployed fix</button> · 
+        <button data-preset="conflict">Deploy vs runtime conflict</button> · 
+        <button data-preset="late">Late-arriving record</button> · 
+        <button data-preset="config">Config-only change</button>
+      </div>
+      <div class="mcols">
+        <div>
+          <label>Symptom (one line)</label>
+          <input id="sympIn" value="500s from /pay: NullPointer in pricing.py" maxlength="400">
+          <label>Service</label>
+          <input id="svcIn" value="payments" maxlength="64">
+          <label>Events (ordered by minutes-before-incident; latest last)</label>
+          <div class="evlist" id="evList"></div>
+          <div class="pb">
+            <button data-add='{"source":"git","kind":"commit"}'>+ Commit</button>
+            <button data-add='{"source":"ci","kind":"build"}'>+ Build</button>
+            <button data-add='{"source":"deploy_log","kind":"deploy"}'>+ Deploy</button>
+            <button data-add='{"source":"runtime","kind":"runtime_version"}'>+ Runtime probe</button>
+            <button data-add='{"source":"k8s_audit","kind":"config_change"}'>+ Config</button>
+            <button data-add='{"source":"orchestrator","kind":"rollout"}'>+ Rollout</button>
+          </div>
+          <label><input type="checkbox" id="askGem" style="width:auto;vertical-align:-2px"> Also ask Gemini (uses a live call)</label>
+        </div>
+        <div>
+          <label>Live result</label>
+          <div class="results" id="composeOut"><div class="small">Build an incident on the left and click Analyze.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="go" id="goBtn">Analyze</button>
+      <span class="small">Full pipeline runs server-side: reconciliation, cross-check, recovery recommendation, (optional) Gemini.</span>
+    </div>
+  </div>
 </div>
 <script>
 "use strict";
@@ -440,6 +513,115 @@ function recordedForIncident(recd){
     if(r.reasoning) c.append(el("div","small",r.reasoning)); w.append(c);});
   return w;
 }
+// ---- Composer ----
+let evLines=[]; let lineId=0;
+function fieldsFor(kind){
+  const common=[["sha","text","A"]];
+  if(kind==="commit") return [["sha","text","A"],["message","text","fix rounding"],["touches","text","pricing.py"]];
+  if(kind==="build") return [["sha","text","A"],["digest","text","dA"]];
+  if(kind==="deploy") return [["digest","text","dA"],["deploy_id","text","d1"],["status","select","success|failed"]];
+  if(kind==="runtime_version") return [["digest","text","dA"]];
+  if(kind==="rollout") return [["deploy_id","text","d1"],["status","select","success|partial|failed"]];
+  if(kind==="config_change") return [["key","text","strict_mode"],["old","text","false"],["new","text","true"],["deploy_id","text","(optional)"]];
+  return common;
+}
+function renderEv(){const host=$("evList"); host.replaceChildren();
+  evLines.forEach((e,ix)=>{
+    const row=el("div","evrow");
+    const t=el("input"); t.type="number"; t.value=e.minutes_before_incident; t.min=0; t.max=1440;
+    t.title="minutes before incident"; t.addEventListener("input",()=>e.minutes_before_incident=+t.value);
+    const i=el("input"); i.type="number"; i.value=e.ingest_delay_minutes; i.min=0;
+    i.title="ingest delay (minutes). Set >T to simulate a late record."; i.addEventListener("input",()=>e.ingest_delay_minutes=+i.value);
+    const lbl=el("div",null,e.kind.replace("_"," "));
+    const detail=el("div"); const fields=fieldsFor(e.kind);
+    fields.forEach(([k,tp,hint])=>{
+      let ctrl; if(tp==="select"){ctrl=el("select"); hint.split("|").forEach(o=>{const op=el("option",null,o);op.value=o;ctrl.append(op);}); ctrl.value=e.data[k]||hint.split("|")[0];}
+      else {ctrl=el("input"); ctrl.type="text"; ctrl.placeholder=hint; ctrl.value=e.data[k]||"";}
+      ctrl.style.width="auto"; ctrl.style.margin="0 4px 0 0"; ctrl.title=k;
+      ctrl.addEventListener("input",()=>{e.data[k]=(k==="touches"?ctrl.value:ctrl.value);});
+      const w=el("span"); w.append(el("span","small",k+" ")); w.append(ctrl); detail.append(w);
+    });
+    const x=el("button",null,"×"); x.addEventListener("click",()=>{evLines.splice(ix,1); renderEv();});
+    row.append(el("div","small","T−"+e.minutes_before_incident+"m"), lbl, el("div","small","+"+e.ingest_delay_minutes+"m"), detail, x);
+    row.replaceChild(t, row.childNodes[0]); row.replaceChild(i, row.childNodes[2]);
+    host.append(row);
+  });
+}
+function addEv(src,kind,data,mins,ing){
+  evLines.push({source:src,kind:kind,data:(data||{}),minutes_before_incident:(mins!=null?mins:30),ingest_delay_minutes:(ing!=null?ing:1)});
+  renderEv();
+}
+const PRESETS={
+  undeployed:{symp:"500s from /pay: NullPointer in pricing.py", evs:[
+    {s:"git",k:"commit",d:{sha:"C1",touches:"pricing.py",message:"apply tiered discounts"},m:600,ig:1},
+    {s:"ci",k:"build",d:{sha:"C1",digest:"dC1"},m:590,ig:1},
+    {s:"deploy_log",k:"deploy",d:{digest:"dC1",deploy_id:"d1",status:"success"},m:580,ig:1},
+    {s:"git",k:"commit",d:{sha:"C2",touches:"pricing.py",message:"fix null discount handling"},m:60,ig:1},
+    {s:"runtime",k:"runtime_version",d:{digest:"dC1"},m:5,ig:1},
+  ]},
+  conflict:{symp:"wrong surcharge applied on /pay", evs:[
+    {s:"git",k:"commit",d:{sha:"C1",touches:"pricing.py"},m:700,ig:1},
+    {s:"ci",k:"build",d:{sha:"C1",digest:"dC1"},m:690,ig:1},
+    {s:"deploy_log",k:"deploy",d:{digest:"dC1",deploy_id:"d1",status:"success"},m:680,ig:1},
+    {s:"git",k:"commit",d:{sha:"C2",touches:"pricing.py"},m:140,ig:1},
+    {s:"ci",k:"build",d:{sha:"C2",digest:"dC2"},m:130,ig:1},
+    {s:"deploy_log",k:"deploy",d:{digest:"dC2",deploy_id:"d2",status:"success"},m:120,ig:1},
+    {s:"runtime",k:"runtime_version",d:{digest:"dC1"},m:5,ig:1},
+  ]},
+  late:{symp:"intermittent 500s on /orders", evs:[
+    {s:"git",k:"commit",d:{sha:"C1",touches:"orders.py"},m:400,ig:1},
+    {s:"ci",k:"build",d:{sha:"C1",digest:"dC1"},m:390,ig:1},
+    {s:"deploy_log",k:"deploy",d:{digest:"dC1",deploy_id:"d1",status:"success"},m:380,ig:1},
+    {s:"git",k:"commit",d:{sha:"C2",touches:"orders.py"},m:100,ig:1},
+    {s:"ci",k:"build",d:{sha:"C2",digest:"dC2"},m:90,ig:1},
+    {s:"deploy_log",k:"deploy",d:{digest:"dC2",deploy_id:"d2",status:"success"},m:80,ig:120},
+  ]},
+  config:{symp:"pricing rejects null discounts (strict mode on)", evs:[
+    {s:"git",k:"commit",d:{sha:"C1",touches:"pricing.py"},m:600,ig:1},
+    {s:"ci",k:"build",d:{sha:"C1",digest:"dC1"},m:590,ig:1},
+    {s:"deploy_log",k:"deploy",d:{digest:"dC1",deploy_id:"d1",status:"success"},m:580,ig:1},
+    {s:"k8s_audit",k:"config_change",d:{key:"strict_mode",old:"false",new:"true"},m:30,ig:1},
+  ]},
+};
+function loadPreset(name){ const p=PRESETS[name]; if(!p) return;
+  $("sympIn").value=p.symp; evLines=[]; p.evs.forEach(x=>addEv(x.s,x.k,x.d,x.m,x.ig));}
+
+function openModal(){ $("modal").classList.add("open"); if(!evLines.length) loadPreset("undeployed"); }
+function closeModal(){ $("modal").classList.remove("open"); }
+document.getElementById("composeBtn")?.addEventListener("click",openModal);
+document.querySelector("#modal .close")?.addEventListener("click",closeModal);
+$("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal();});
+document.querySelectorAll("#modal .preset button[data-preset]").forEach(b=>b.addEventListener("click",()=>loadPreset(b.dataset.preset)));
+document.querySelectorAll("#modal .pb button[data-add]").forEach(b=>b.addEventListener("click",()=>{const o=JSON.parse(b.dataset.add); addEv(o.source,o.kind,{},30,1);}));
+document.getElementById("goBtn").addEventListener("click",async()=>{
+  const go=$("goBtn"); go.disabled=true;
+  const payload={symptom:$("sympIn").value,service:$("svcIn").value,evidence:evLines.map(e=>({
+    source:e.source,kind:e.kind,minutes_before_incident:+e.minutes_before_incident,ingest_delay_minutes:+e.ingest_delay_minutes,
+    data:Object.fromEntries(Object.entries(e.data).filter(([k,v])=>v!==""&&v!=null).map(([k,v])=>k==="touches"?[k,String(v).split(",").map(s=>s.trim())]:[k,v]))
+  })),ask_gemini:$("askGem").checked};
+  const out=$("composeOut"); out.replaceChildren(el("div","small","…running pipeline"));
+  try{
+    const r=await api("/api/custom/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    out.replaceChildren();
+    const cnt={DEPLOYED:0,NOT_DEPLOYED:0,UNKNOWN:0}; r.reconciliation.changes.forEach(c=>{if(c.status in cnt) cnt[c.status]++;});
+    const headline=el("div","headline",cnt.UNKNOWN?"Reconciled state has uncertainty":"Reconciled state is clean");
+    out.append(headline);
+    const g=el("div","glance"); [["DEPLOYED","Live"],["NOT_DEPLOYED","Not live"],["UNKNOWN","Unknown"]].forEach(([k,l])=>{const d=el("div"); const b=el("b",null,String(cnt[k])); b.className="c-"+k; d.append(b,el("span",null,l)); g.append(d);}); out.append(g);
+    if(r.reconciliation.contradictions.length){const c=el("div","card contra"); c.append(el("div","k","Contradictions")); r.reconciliation.contradictions.forEach(x=>c.append(el("div",null,x.type.replace(/_/g," ")))); out.append(c);}
+    const rc=el("div","recov"); rc.append(el("h3",null,"Recovery recommendation"));
+    const rr=el("div","row");
+    [["Naive","naive"],["Metis","metis"]].forEach(([lbl,k])=>{const col=el("div","c"); col.append(el("span","lbl",lbl)); const act=el("div","act",r.recovery[k].action.replace(/_/g," "));
+      const p=el("span","pill "+(r.recovery[k].valid?"ok":"bad"),r.recovery[k].valid?"VALID":"INVALID"); act.append(p); col.append(act);
+      col.append(el("div","why",r.recovery[k].why)); rr.append(col);});
+    rc.append(rr); out.append(rc);
+    if(r.gemini){ const gm=el("div","card verdict"); gm.append(el("div","k","Gemini verdict (reconciled, admissibility-checked)"));
+      gm.append(el("div",null,r.gemini.abstained?"Abstained: insufficient evidence":"Probable cause: "+(r.gemini.cause_id||"(none)")));
+      if(r.gemini.flags?.length) gm.append(el("div","err","Rejected: "+r.gemini.flags.join(", "))); out.append(gm);}
+    else if(r.gemini_error){ out.append(el("div","card contra err","Gemini: "+r.gemini_error));}
+  }catch(e){ out.replaceChildren(el("div","card contra err","Could not analyze: "+e.message)); }
+  finally{ go.disabled=false; }
+});
+
 init().catch(e=>{$("main").replaceChildren(el("p","err","Failed to load: "+e.message));});
 </script>
 </body>
